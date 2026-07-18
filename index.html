@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#5B9BD5">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ゆめカード家計簿">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>ゆめカード家計簿（スマホ単体版）</title>
+<script src="lib/chart.umd.min.js"></script>
+<script src="lib/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --blue-deep:#4A87C5;
+    --blue-main:#5B9BD5;
+    --blue-soft:#9DC3E6;
+    --blue-pale:#EAF2FA;
+    --ink:#33404A;
+    --ink-soft:#7A8894;
+    --line:#D9E6F2;
+    --bg:#F7FAFD;
+    --white:#FFFFFF;
+    --danger:#D9765B;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:"Meiryo","メイリオ","Hiragino Kaku Gothic ProN","Hiragino Sans",sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{
+    max-width:480px;
+    margin:0 auto;
+    min-height:100vh;
+    background:var(--white);
+    display:flex;
+    flex-direction:column;
+  }
+  header{
+    background:linear-gradient(135deg,var(--blue-main),var(--blue-deep));
+    color:#fff;
+    padding:22px 20px 18px;
+    position:sticky;
+    top:0;
+    z-index:10;
+  }
+  header .title{
+    font-size:19px;
+    font-weight:700;
+    letter-spacing:.02em;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  header .subtitle{
+    font-size:12px;
+    opacity:.85;
+    margin-top:4px;
+  }
+  nav.tabs{
+    display:flex;
+    background:var(--blue-pale);
+    border-bottom:1px solid var(--line);
+  }
+  nav.tabs button{
+    flex:1;
+    padding:13px 0;
+    background:none;
+    border:none;
+    font-size:14px;
+    font-weight:600;
+    color:var(--ink-soft);
+    font-family:inherit;
+    cursor:pointer;
+    border-bottom:3px solid transparent;
+    transition:.15s;
+  }
+  nav.tabs button.active{
+    color:var(--blue-deep);
+    border-bottom:3px solid var(--blue-main);
+  }
+  main{
+    flex:1;
+    padding:18px 18px 90px;
+  }
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .field{margin-bottom:14px;}
+
+  .edit-banner{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    background:var(--blue-pale);
+    border:1px solid var(--blue-soft);
+    border-radius:10px;
+    padding:10px 14px;
+    font-size:13px;
+    font-weight:700;
+    color:var(--blue-deep);
+    margin-bottom:16px;
+  }
+  .edit-banner button{
+    background:none;
+    border:1px solid var(--blue-deep);
+    color:var(--blue-deep);
+    border-radius:6px;
+    padding:4px 10px;
+    font-size:11.5px;
+    font-family:inherit;
+    cursor:pointer;
+  }
+  .field label{
+    display:block;
+    font-size:12px;
+    color:var(--ink-soft);
+    margin-bottom:5px;
+    font-weight:600;
+  }
+  .field input, .field select, .field textarea{
+    width:100%;
+    padding:11px 12px;
+    border:1.5px solid var(--line);
+    border-radius:10px;
+    font-size:15px;
+    font-family:inherit;
+    color:var(--ink);
+    background:var(--white);
+  }
+  .field input:focus, .field select:focus, .field textarea:focus{
+    outline:none;
+    border-color:var(--blue-main);
+  }
+  .field textarea{resize:vertical;min-height:44px;}
+
+  .row2{display:flex;gap:10px;}
+  .row2 .field{flex:1;}
+
+  .save-btn{
+    width:100%;
+    padding:14px;
+    background:var(--blue-main);
+    color:#fff;
+    border:none;
+    border-radius:10px;
+    font-size:15px;
+    font-weight:700;
+    font-family:inherit;
+    letter-spacing:.03em;
+    cursor:pointer;
+    margin-top:4px;
+  }
+  .save-btn:active{background:var(--blue-deep);}
+
+  .section-title{
+    font-size:13px;
+    font-weight:700;
+    color:var(--ink-soft);
+    margin:26px 0 10px;
+    padding-bottom:6px;
+    border-bottom:1px dashed var(--blue-soft);
+  }
+  .export-btn{
+    background:var(--blue-pale);
+    color:var(--blue-deep);
+    border:1px solid var(--blue-soft);
+    border-radius:8px;
+    padding:6px 10px;
+    font-size:11.5px;
+    font-weight:700;
+    font-family:inherit;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .export-btn:active{background:var(--blue-soft);}
+
+  .entry{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    padding:12px 0;
+    border-bottom:1px dashed var(--line);
+    gap:10px;
+  }
+  .entry:last-child{border-bottom:none;}
+  .entry .left{flex:1;min-width:0;}
+  .entry .date{font-size:11px;color:var(--ink-soft);}
+  .entry .dest{font-size:14.5px;font-weight:600;margin-top:2px;}
+  .entry .cat{
+    display:inline-block;
+    font-size:11px;
+    color:var(--blue-deep);
+    background:var(--blue-pale);
+    border-radius:6px;
+    padding:1px 7px;
+    margin-top:4px;
+  }
+  .entry .pay-info{
+    font-size:11px;
+    color:var(--ink-soft);
+    margin-top:5px;
+  }
+  .entry .memo{font-size:12px;color:var(--ink-soft);margin-top:4px;line-height:1.4;}
+  .entry .right{text-align:right;white-space:nowrap;}
+  .entry .amount{font-size:15px;font-weight:700;}
+  .entry .del{
+    margin-top:6px;
+    background:none;
+    border:none;
+    color:var(--ink-soft);
+    font-size:11px;
+    text-decoration:underline;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .entry .edit{
+    margin-top:6px;
+    margin-right:10px;
+    background:none;
+    border:none;
+    color:var(--blue-deep);
+    font-size:11px;
+    text-decoration:underline;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .empty{
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:13px;
+    padding:30px 0;
+  }
+
+  .summary-cards{
+    display:flex;
+    gap:10px;
+    margin-bottom:18px;
+  }
+  .card{
+    flex:1;
+    background:var(--blue-pale);
+    border-radius:12px;
+    padding:14px;
+  }
+  .card .label{font-size:11px;color:var(--blue-deep);font-weight:600;}
+  .card .value{font-size:19px;font-weight:700;color:var(--ink);margin-top:4px;}
+
+  .chart-wrap{
+    background:var(--white);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:14px 10px;
+    margin-bottom:20px;
+  }
+  select.month-select{
+    width:auto;
+    display:inline-block;
+    padding:6px 10px;
+    font-size:13px;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    font-family:inherit;
+  }
+
+  .pay-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .pay-table th{
+    text-align:left;
+    color:var(--ink-soft);
+    font-weight:600;
+    padding:6px 6px;
+    border-bottom:1.5px solid var(--blue-soft);
+  }
+  .pay-table td{
+    padding:8px 6px;
+    border-bottom:1px dashed var(--line);
+  }
+  .pay-table td.num{text-align:right;font-weight:700;}
+  .pay-table tr:last-child td{border-bottom:none;}
+
+  .toast{
+    position:fixed;
+    bottom:24px;
+    left:50%;
+    transform:translateX(-50%) translateY(20px);
+    background:var(--ink);
+    color:#fff;
+    padding:10px 20px;
+    border-radius:20px;
+    font-size:13px;
+    opacity:0;
+    pointer-events:none;
+    transition:.25s;
+    z-index:50;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  ::-webkit-scrollbar{width:0;}
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(51,64,74,0.45);
+    display:flex; align-items:center; justify-content:center;
+    z-index:100; padding:20px;
+  }
+  .modal-box{
+    background:var(--white); border-radius:14px; padding:20px;
+    width:100%; max-width:340px;
+  }
+  .modal-title{font-size:15px; font-weight:700; margin-bottom:14px; color:var(--ink);}
+  .manual-tag{
+    display:inline-block; font-size:9.5px; color:var(--blue-deep);
+    background:var(--blue-pale); border-radius:5px; padding:1px 5px; margin-left:4px;
+  }
+  .pay-edit-btn{
+    background:none; border:none; font-size:14px; cursor:pointer; padding:2px 6px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="title">💳 ゆめカード家計簿</div>
+    <div class="subtitle">スマホ単体版・このブラウザだけに保存されます</div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-view="input">入力</button>
+    <button class="tab-btn" data-view="list">記録一覧</button>
+    <button class="tab-btn" data-view="graph">グラフ</button>
+  </nav>
+
+  <main>
+    <!-- 入力画面 -->
+    <section id="view-input" class="view active">
+      <div id="edit-banner" class="edit-banner" style="display:none;">
+        ✏️ この記録を編集中
+        <button id="cancel-edit-btn" type="button">キャンセル</button>
+      </div>
+      <div class="field">
+        <label>日付</label>
+        <input type="date" id="in-date">
+      </div>
+      <div class="field">
+        <label>利用先</label>
+        <input type="text" id="in-dest" list="dest-datalist" placeholder="例：ゆめタウン南岩国店" autocomplete="off">
+        <datalist id="dest-datalist"></datalist>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>金額（円）</label>
+          <input type="text" id="in-amount" placeholder="0" inputmode="numeric" pattern="[0-9,]*">
+        </div>
+        <div class="field">
+          <label>カテゴリ</label>
+          <select id="in-cat">
+            <option>コスメ用品</option>
+            <option>美容関係</option>
+            <option>ランチ・カフェ</option>
+            <option>服・靴・アクセサリー</option>
+            <option>ネットショップ</option>
+            <option>プレゼント</option>
+            <option>宝くじ</option>
+            <option>その他</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>メモ</label>
+        <textarea id="in-memo" placeholder="購入したものなど"></textarea>
+      </div>
+      <button class="save-btn" id="save-btn">この内容で記録する</button>
+    </section>
+
+    <!-- 記録一覧画面 -->
+    <section id="view-list" class="view">
+      <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <span>記録一覧</span>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <select class="month-select" id="list-month-select"></select>
+          <button id="import-btn" class="export-btn">📤 Excelから読み込む</button>
+          <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none;">
+          <button id="backup-save-btn" class="export-btn">📦 バックアップ保存</button>
+          <button id="backup-restore-btn" class="export-btn">📦 復元</button>
+          <input type="file" id="backup-restore-file" accept=".json" style="display:none;">
+          <button id="export-btn" class="export-btn">📥 Excelに書き出す</button>
+        </div>
+      </div>
+      <div id="list-container"></div>
+    </section>
+
+    <!-- グラフ画面 -->
+    <section id="view-graph" class="view">
+      <div class="summary-cards">
+        <div class="card">
+          <div class="label">今月の合計</div>
+          <div class="value" id="this-month-total">¥0</div>
+        </div>
+        <div class="card">
+          <div class="label">全期間の合計</div>
+          <div class="value" id="all-total">¥0</div>
+        </div>
+      </div>
+
+      <div class="section-title">
+        カテゴリ別の内訳
+        <select class="month-select" id="cat-month-select"></select>
+      </div>
+      <div class="chart-wrap"><canvas id="categoryChart" height="220"></canvas></div>
+      <div class="section-title" id="cat-month-entries-title">この月の記録</div>
+      <div id="cat-month-entries"></div>
+
+      <div class="section-title">月別の支出</div>
+      <div class="chart-wrap"><canvas id="monthlyChart" height="180"></canvas></div>
+
+      <div class="section-title">締め日・支払日 一覧</div>
+      <div class="chart-wrap" id="pay-table-wrap"></div>
+
+      <div class="section-title">アプリの調子が悪いとき</div>
+      <div class="chart-wrap" style="text-align:center;">
+        <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:10px;line-height:1.6;">
+          表示が古いまま・崩れて見える場合は、下のボタンを押してみてね。<br>
+          入力したデータ（記録一覧）は消えません。表示用のキャッシュだけをリセットします。
+        </div>
+        <button id="reset-cache-btn" class="export-btn" style="width:100%;">🔄 表示をリセットする</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast">保存したよ</div>
+
+<div id="pay-edit-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-title" id="pay-edit-title">締め日・支払日の修正</div>
+    <div class="field">
+      <label>締め日</label>
+      <input type="date" id="pay-edit-shime">
+    </div>
+    <div class="field">
+      <label>支払日</label>
+      <input type="date" id="pay-edit-pay">
+    </div>
+    <button id="pay-edit-save" class="save-btn">この内容で保存</button>
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <button id="pay-edit-reset" class="export-btn" style="flex:1;">自動計算に戻す</button>
+      <button id="pay-edit-cancel" class="export-btn" style="flex:1;">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<div id="backup-confirm-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-title">バックアップの内容を確認</div>
+    <div id="backup-confirm-info" style="font-size:13px; color:var(--ink); line-height:1.9; margin-bottom:16px;"></div>
+    <button id="backup-confirm-merge" class="save-btn">追加する（今のデータに足す）</button>
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <button id="backup-confirm-replace" class="export-btn" style="flex:1;">全部置き換える</button>
+      <button id="backup-confirm-cancel" class="export-btn" style="flex:1;">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const CATS = ["コスメ用品","美容関係","ランチ・カフェ","服・靴・アクセサリー","ネットショップ","プレゼント","宝くじ","その他"];
+const CAT_COLORS = ["#528EC5","#A9D2C8","#BFD4B5","#C7B6D6","#E2B6BB","#DCCBBE","#E6D8A7","#D4D7DB"];
+const STORAGE_KEY = "yumecard:entries";
+const SEEDED_FLAG_KEY = "yumecard:seeded";
+const OVERRIDES_KEY = "yumecard:overrides";
+
+const SEED_DATA = [{"id": "seed5", "date": "2026-01-15", "dest": "ソレイユ化粧品 フジグラン岩国店", "amount": 5500, "cat": "コスメ用品", "memo": "EL モデリングカラーB BE902"}, {"id": "seed6", "date": "2026-01-27", "dest": "さいとう皮膚科", "amount": 8000, "cat": "美容関係", "memo": "シェボックスSR"}, {"id": "seed7", "date": "2026-01-30", "dest": "ヨドバシドットコム", "amount": 693, "cat": "ネットショップ", "memo": "はがせるマーカー（あかねに頼まれて"}, {"id": "seed8", "date": "2026-02-02", "dest": "郵便局 南岩国三郵便局", "amount": 1260, "cat": "その他", "memo": "ゆうパック スマホ割（もみじ宛て"}, {"id": "seed9", "date": "2026-02-03", "dest": "ゆめタウン 南岩国店", "amount": 18920, "cat": "コスメ用品", "memo": "iP 泡セラム、OBKセラムシールド、OBKポアクリアオイル、\nセザンヌ チーク"}, {"id": "seed10", "date": "2026-02-07", "dest": "MERRY", "amount": 10050, "cat": "美容関係", "memo": "カット+ダメージレスカラー"}, {"id": "seed12", "date": "2026-02-11", "dest": "Amazon", "amount": 3500, "cat": "ネットショップ", "memo": "クリナップ 防臭パイプ、水筒用洗浄剤、スマホケース"}, {"id": "seed13", "date": "2026-02-18", "dest": "ゆめタウン 南岩国店", "amount": 4730, "cat": "コスメ用品", "memo": "エリクシール 化粧水、ロージーローザー パフとブラシ"}, {"id": "seed14", "date": "2026-03-10", "dest": "さいとう皮膚科", "amount": 8500, "cat": "美容関係", "memo": "処方せん料（自費）、Nd/YAG 1064（トーニング）"}, {"id": "seed15", "date": "2026-03-10", "dest": "車町薬局", "amount": 5600, "cat": "美容関係", "memo": "美容内服（自費）"}, {"id": "seed17", "date": "2026-03-14", "dest": "中央公園売店 / 喫茶", "amount": 1000, "cat": "ランチ・カフェ", "memo": "ソフトクリーム②"}, {"id": "seed18", "date": "2026-03-16", "dest": "ゆめタウン 南岩国店", "amount": 2086, "cat": "コスメ用品", "memo": "リンクル美容液、OBKセラムシールド"}, {"id": "seed19", "date": "2026-03-17", "dest": "OWNDAYS / TIME TIME 南岩国店", "amount": 13100, "cat": "服・靴・アクセサリー", "memo": "メガネ13000、PCカラーレンズ"}, {"id": "seed20", "date": "2026-03-18", "dest": "Amazon", "amount": 2895, "cat": "ネットショップ", "memo": "スマホスタンド②、歯磨き粉"}, {"id": "seed21", "date": "2026-03-22", "dest": "chatGPT", "amount": 1400, "cat": "その他", "memo": "AI利用料：chatGPT"}, {"id": "seed22", "date": "2026-03-23", "dest": "ウォンツ 南岩国店", "amount": 3145, "cat": "コスメ用品", "memo": "キュレル フェイスクリーム、キャンメイク クリームチーク"}, {"id": "seed23", "date": "2026-03-23", "dest": "ウォンツ フジ南岩国店", "amount": 851, "cat": "コスメ用品", "memo": "ケアセラ 高保湿先行乳液"}, {"id": "seed24", "date": "2026-03-24", "dest": "無印良品 ネットストア", "amount": 10810, "cat": "その他", "memo": "掃除道具入れ用ボックス（自宅用"}, {"id": "seed25", "date": "2026-03-28", "dest": "無印良品 ゆめタウン大竹", "amount": 5372, "cat": "その他", "memo": "長方形ボックスなど（自宅用"}, {"id": "seed26", "date": "2026-04-02", "dest": "松江 フォーゲルパーク", "amount": 2673, "cat": "プレゼント", "memo": "どじょう掬い饅頭など"}, {"id": "seed27", "date": "2026-04-04", "dest": "セブンイレブン 中国道安佐SA下り店", "amount": 1956, "cat": "プレゼント", "memo": "スイートポテト④、クロミ靴下"}, {"id": "seed28", "date": "2026-04-06", "dest": "岩国錦帯橋空港売店 SkyShop アイアイ", "amount": 4670, "cat": "プレゼント", "memo": "ハンドクリーム③、外郎など"}, {"id": "seed29", "date": "2026-04-07", "dest": "さいとう皮膚科", "amount": 8500, "cat": "美容関係", "memo": "処方せん料（自費）、Nd/YAG 1064（トーニング）"}, {"id": "seed30", "date": "2026-04-07", "dest": "車町薬局", "amount": 5600, "cat": "美容関係", "memo": "美容内服（自費）"}, {"id": "seed32", "date": "2026-04-15", "dest": "ヨドバシドットコム", "amount": 8000, "cat": "ネットショップ", "memo": "洗剤、コスメなどたくさん"}, {"id": "seed33", "date": "2026-04-19", "dest": "Amazon", "amount": 2860, "cat": "ネットショップ", "memo": "ハンドクリーム②"}, {"id": "seed34", "date": "2026-04-22", "dest": "chatGPT", "amount": 1400, "cat": "その他", "memo": "AI利用料：chatGPT"}, {"id": "seed35", "date": "2026-04-22", "dest": "MERRY", "amount": 10450, "cat": "美容関係", "memo": "カット+ダメージレスカラー"}, {"id": "seed36", "date": "2026-04-23", "dest": "Amazon", "amount": 800, "cat": "ネットショップ", "memo": "超かんたんコーティングスプレー"}, {"id": "seed37", "date": "2026-04-23", "dest": "ゆめタウン 南岩国店", "amount": 14410, "cat": "コスメ用品", "memo": "エリクシール トーンアップUV乳液、化粧水、乳液、キュレル 泡洗顔、フェイスクリーム替え、セザンヌ アイシャドウ"}, {"id": "seed38", "date": "2026-04-27", "dest": "サンマルクカフェ ゆめタウン廿日市店", "amount": 1040, "cat": "ランチ・カフェ", "memo": "アイスロイヤルミルクティS、キャラメルマキアートM"}, {"id": "seed39", "date": "2026-04-27", "dest": "無印良品 ゆめタウン廿日市店", "amount": 1190, "cat": "コスメ用品", "memo": "アルミ折りたたみミラーL"}, {"id": "seed40", "date": "2026-04-27", "dest": "e.r.g*", "amount": 2200, "cat": "服・靴・アクセサリー", "memo": "チェーンロングラリエット"}, {"id": "seed41", "date": "2026-05-03", "dest": "ヨドバシドットコム", "amount": 1000, "cat": "ネットショップ", "memo": "Pixel 8a用スマホケース"}, {"id": "seed42", "date": "2026-05-05", "dest": "ウォンツ 南岩国店", "amount": 2530, "cat": "コスメ用品", "memo": "エクセルーラ ムースウォッシュ"}, {"id": "seed44", "date": "2026-05-19", "dest": "ヨドバシドットコム", "amount": 3000, "cat": "ネットショップ", "memo": "お掃除シート、自動製氷用浄水フィルターなど"}, {"id": "seed45", "date": "2026-05-20", "dest": "ヨドバシドットコム", "amount": 3500, "cat": "ネットショップ", "memo": "電動歯ブラシ用 替えブラシ"}, {"id": "seed46", "date": "2026-05-22", "dest": "chatGPT", "amount": 1400, "cat": "その他", "memo": "AI利用料：chatGPT"}, {"id": "seed47", "date": "2026-05-29", "dest": "さいとう皮膚科", "amount": 8500, "cat": "美容関係", "memo": "処方せん料（自費）、Nd/YAG 1064（トーニング）"}, {"id": "seed48", "date": "2026-05-29", "dest": "さいとう皮膚科", "amount": 870, "cat": "その他", "memo": "処方せん料（保険）"}, {"id": "seed49", "date": "2026-05-29", "dest": "車町薬局", "amount": 5600, "cat": "美容関係", "memo": "美容内服（自費）"}, {"id": "seed50", "date": "2026-05-29", "dest": "車町薬局", "amount": 420, "cat": "その他", "memo": "貼り薬（保険）"}, {"id": "seed51", "date": "2026-05-29", "dest": "はま寿司 岩国店", "amount": 1067, "cat": "ランチ・カフェ", "memo": "1人ランチ"}, {"id": "seed52", "date": "2026-05-31", "dest": "PAL CLOSET", "amount": 3080, "cat": "その他", "memo": "クリアボックスバッグ、布団収納バッグなど（自宅用"}, {"id": "seed53", "date": "2026-06-04", "dest": "ヨドバシドットコム", "amount": 600, "cat": "ネットショップ", "memo": "クリヤーブック（あかねに頼まれて"}, {"id": "seed54", "date": "2026-06-02", "dest": "ゆめタウン 南岩国店", "amount": 8624, "cat": "コスメ用品", "memo": "ハンドクリーム⑧"}, {"id": "seed56", "date": "2026-06-13", "dest": "ゆめタウン 南岩国店", "amount": 15840, "cat": "コスメ用品", "memo": "雪肌精 日焼け止め、OBKセラムシールド、\nマキアージュ アイカラー、OBKザリンクレス"}, {"id": "seed58", "date": "2026-06-16", "dest": "ヨドバシドットコム", "amount": 1900, "cat": "ネットショップ", "memo": "サニタリー、ワイドハイター 泡スプレーなど"}, {"id": "seed59", "date": "2026-06-22", "dest": "chatGPT", "amount": 1400, "cat": "その他", "memo": "AI利用料：chatGPT"}, {"id": "seed60", "date": "2026-06-28", "dest": "ケンタッキーフライドチキン", "amount": 1840, "cat": "ランチ・カフェ", "memo": "昼食2人分"}, {"id": "seed61", "date": "2026-07-01", "dest": "Claude", "amount": 3613, "cat": "その他", "memo": "AI利用料：Claude"}, {"id": "seed62", "date": "2026-07-03", "dest": "さいとう皮膚科", "amount": 8000, "cat": "美容関係", "memo": "Nd/YAG 1064（トーニング）"}, {"id": "seed63", "date": "2026-07-08", "dest": "布と暮らしと", "amount": 10229, "cat": "その他", "memo": "生地（自宅用"}, {"id": "seed65", "date": "2026-07-12", "dest": "ゆめタウン 南岩国店", "amount": 13486, "cat": "コスメ用品", "memo": "メイクミスト、ルルルンフェイスパック、iP 泡セラム"}, {"id": "seed66", "date": "2026-07-16", "dest": "しまむら 南岩国店", "amount": 1969, "cat": "服・靴・アクセサリー", "memo": "夏用バッグ"}, {"id": "seed67", "date": "2026-07-22", "dest": "chatGPT", "amount": 1400, "cat": "その他", "memo": "AI利用料：chatGPT"}, {"id": "seed71", "date": "2026-08-22", "dest": "chatGPT", "amount": 1400, "cat": "その他", "memo": "AI利用料：chatGPT"}, {"id": "seed74", "date": "2026-09-22", "dest": "chatGPT", "amount": 1400, "cat": "その他", "memo": "AI利用料：chatGPT"}, {"id": "seed77", "date": "2026-10-22", "dest": "chatGPT", "amount": 1400, "cat": "その他", "memo": "AI利用料：chatGPT"}];
+
+let entries = [];
+let overrides = {}; // { "YYYY-MM": { shime: "YYYY-MM-DD", pay: "YYYY-MM-DD" } }
+let monthlyChart, categoryChart;
+let editingId = null;
+let listMonthFilter = "__all__";
+let payEditMonth = null;
+
+function todayStr(){
+  const d = new Date();
+  const tz = d.getTimezoneOffset()*60000;
+  return new Date(d - tz).toISOString().slice(0,10);
+}
+document.getElementById('in-date').value = todayStr();
+
+// 金額入力中、自動でカンマ区切りに整形する
+document.getElementById('in-amount').addEventListener('input', (e)=>{
+  const digits = e.target.value.replace(/[^0-9]/g, '');
+  e.target.value = digits ? parseInt(digits, 10).toLocaleString() : '';
+});
+
+// 利用先の入力候補（オートコンプリート）を、過去に入力した利用先から自動生成
+function updateDestDatalist(){
+  const list = document.getElementById('dest-datalist');
+  if(!list) return;
+  const uniqueDests = [...new Set(entries.map(e => e.dest).filter(Boolean))];
+  uniqueDests.sort((a,b) => a.localeCompare(b, 'ja'));
+  list.innerHTML = uniqueDests.map(d => `<option value="${escapeHtml(d)}"></option>`).join('');
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1600);
+}
+
+async function loadEntries(){
+  let seeded = false;
+  try{
+    seeded = localStorage.getItem(SEEDED_FLAG_KEY) === "true";
+  }catch(e){
+    seeded = false;
+  }
+
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    entries = raw ? JSON.parse(raw) : [];
+  }catch(e){
+    entries = [];
+  }
+
+  try{
+    const rawOv = localStorage.getItem(OVERRIDES_KEY);
+    overrides = rawOv ? JSON.parse(rawOv) : {};
+  }catch(e){
+    overrides = {};
+  }
+
+  // 初回だけ、前のExcelのデータを自動で読み込む
+  if(!seeded && entries.length === 0){
+    entries = SEED_DATA.slice();
+    await saveEntries();
+    try{ localStorage.setItem(SEEDED_FLAG_KEY, "true"); }catch(e){}
+    showToast("前のExcelのデータを読み込んだよ（" + entries.length + "件）");
+  }
+
+  render();
+}
+
+async function saveEntries(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  }catch(e){
+    showToast("保存に失敗したかも…もう一度試してね");
+  }
+}
+
+async function saveOverrides(){
+  try{
+    localStorage.setItem(OVERRIDES_KEY, JSON.stringify(overrides));
+  }catch(e){
+    showToast("保存に失敗したかも…もう一度試してね");
+  }
+}
+
+function fmtYen(n){
+  return "¥" + Math.round(n).toLocaleString();
+}
+
+function monthKey(dateStr){
+  return dateStr.slice(0,7); // YYYY-MM
+}
+
+// ゆめカードのルール：毎月10日締め、翌月4日払い（土日は翌営業日にずらす。祝日は考慮していない簡易版）
+function closingMonthOf(dateStr){
+  const d = new Date(dateStr + "T00:00:00");
+  const day = d.getDate();
+  let y = d.getFullYear(), m = d.getMonth(); // m: 0-11
+  if(day > 10){
+    m += 1;
+    if(m > 11){ m = 0; y += 1; }
+  }
+  return {y, m}; // mは0-11、締め月
+}
+
+function pad2(n){ return n.toString().padStart(2,'0'); }
+
+// 自動計算のデフォルト値（ISO形式 YYYY-MM-DD）
+function defaultShimeISO(y, m){ // m:0-11
+  return `${y}-${pad2(m+1)}-10`;
+}
+function defaultPayISO(y, m){ // 締め月の翌月4日、土日なら翌営業日
+  let py = y, pm = m + 1;
+  if(pm > 11){ pm = 0; py += 1; }
+  let d = new Date(py, pm, 4);
+  const wd = d.getDay(); // 0:日 6:土
+  if(wd === 0) d.setDate(d.getDate() + 1);
+  else if(wd === 6) d.setDate(d.getDate() + 2);
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+}
+function isoToSlash(iso){
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${y}/${m}/${d}`;
+}
+// 手動修正(overrides)があればそれを優先、なければ自動計算値を返す
+function getShimeISO(y, m){
+  const key = `${y}-${pad2(m+1)}`;
+  return (overrides[key] && overrides[key].shime) ? overrides[key].shime : defaultShimeISO(y, m);
+}
+function getPayISO(y, m){
+  const key = `${y}-${pad2(m+1)}`;
+  return (overrides[key] && overrides[key].pay) ? overrides[key].pay : defaultPayISO(y, m);
+}
+// 既存コードとの互換のため、スラッシュ表記の関数名はそのまま残す（内部でoverridesを見るように）
+function shimeDateOf(y, m){
+  return isoToSlash(getShimeISO(y, m));
+}
+function payDateOf(y, m){
+  return isoToSlash(getPayISO(y, m));
+}
+
+function closingMonthLabel(dateStr){
+  const {y,m} = closingMonthOf(dateStr);
+  return `${y}-${pad2(m+1)}`;
+}
+
+// ---------- 入力 ----------
+document.getElementById('save-btn').addEventListener('click', async ()=>{
+  const date = document.getElementById('in-date').value;
+  const dest = document.getElementById('in-dest').value.trim();
+  const amount = parseFloat(document.getElementById('in-amount').value.replace(/,/g, ''));
+  const cat = document.getElementById('in-cat').value;
+  const memo = document.getElementById('in-memo').value.trim();
+
+  if(!date){ showToast("日付を入れてね"); return; }
+  if(!dest){ showToast("利用先を入れてね"); return; }
+  if(!amount || amount <= 0){ showToast("金額を入れてね"); return; }
+
+  if(editingId){
+    const idx = entries.findIndex(e => e.id === editingId);
+    if(idx !== -1){
+      entries[idx] = {...entries[idx], date, dest, amount, cat, memo};
+    }
+    await saveEntries();
+    showToast("更新したよ！");
+    endEdit();
+  }else{
+    const entry = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      date, dest, amount, cat, memo
+    };
+    entries.push(entry);
+    await saveEntries();
+    showToast("記録したよ！");
+  }
+
+  document.getElementById('in-dest').value = "";
+  document.getElementById('in-amount').value = "";
+  document.getElementById('in-memo').value = "";
+  document.getElementById('in-date').value = todayStr();
+
+  render();
+});
+
+function startEdit(id){
+  const e = entries.find(x => x.id === id);
+  if(!e) return;
+  editingId = id;
+  document.getElementById('in-date').value = e.date;
+  document.getElementById('in-dest').value = e.dest;
+  document.getElementById('in-amount').value = e.amount.toLocaleString();
+  document.getElementById('in-cat').value = e.cat;
+  document.getElementById('in-memo').value = e.memo || "";
+  document.getElementById('edit-banner').style.display = 'flex';
+  document.getElementById('save-btn').textContent = 'この内容で更新する';
+
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelector('.tab-btn[data-view="input"]').classList.add('active');
+  document.getElementById('view-input').classList.add('active');
+}
+
+function endEdit(){
+  editingId = null;
+  document.getElementById('edit-banner').style.display = 'none';
+  document.getElementById('save-btn').textContent = 'この内容で記録する';
+}
+
+document.getElementById('cancel-edit-btn').addEventListener('click', ()=>{
+  endEdit();
+  document.getElementById('in-dest').value = "";
+  document.getElementById('in-amount').value = "";
+  document.getElementById('in-memo').value = "";
+  document.getElementById('in-date').value = todayStr();
+});
+
+// ---------- 一覧 ----------
+async function deleteEntry(id){
+  entries = entries.filter(e => e.id !== id);
+  await saveEntries();
+  render();
+}
+
+function buildEntriesHtml(list){
+  if(list.length === 0){
+    return '<div class="empty">この月の記録はまだないよ</div>';
+  }
+  return list.map(e => {
+    const {y,m} = closingMonthOf(e.date);
+    const shime = shimeDateOf(y,m);
+    const pay = payDateOf(y,m);
+    return `
+    <div class="entry">
+      <div class="left">
+        <div class="date">${e.date}</div>
+        <div class="dest">${escapeHtml(e.dest)}</div>
+        <span class="cat">${escapeHtml(e.cat)}</span>
+        <div class="pay-info">締め ${shime}　→　支払 ${pay}</div>
+        ${e.memo ? `<div class="memo">${escapeHtml(e.memo)}</div>` : ""}
+      </div>
+      <div class="right">
+        <div class="amount">${fmtYen(e.amount)}</div>
+        <button class="edit" data-id="${e.id}">編集</button>
+        <button class="del" data-id="${e.id}">削除</button>
+      </div>
+    </div>
+  `;}).join("");
+}
+
+function bindDeleteButtons(container){
+  container.querySelectorAll('.del').forEach(btn=>{
+    btn.addEventListener('click', ()=> deleteEntry(btn.dataset.id));
+  });
+  container.querySelectorAll('.edit').forEach(btn=>{
+    btn.addEventListener('click', ()=> startEdit(btn.dataset.id));
+  });
+}
+
+function renderList(){
+  const container = document.getElementById('list-container');
+  const select = document.getElementById('list-month-select');
+
+  // 月選択肢の生成
+  const monthsSet = new Set(entries.map(e => closingMonthLabel(e.date)));
+  const months = [...monthsSet].sort();
+  const prevSelected = select.value || listMonthFilter;
+  select.innerHTML = '<option value="__all__">全期間</option>' +
+    months.slice().reverse().map(m=>{
+      const [y,mo] = m.split('-');
+      return `<option value="${m}">${y}年${parseInt(mo)}月分</option>`;
+    }).join("");
+  if(prevSelected && [...select.options].some(o=>o.value===prevSelected)){
+    select.value = prevSelected;
+  }
+  listMonthFilter = select.value || "__all__";
+
+  const filtered = listMonthFilter === "__all__" ? entries : entries.filter(e => closingMonthLabel(e.date) === listMonthFilter);
+
+  if(filtered.length === 0){
+    container.innerHTML = entries.length === 0
+      ? '<div class="empty">まだ記録がないよ。「入力」タブから追加してね</div>'
+      : '<div class="empty">この月の記録はまだないよ</div>';
+    return;
+  }
+  const sorted = [...filtered].sort((a,b)=> b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+  container.innerHTML = buildEntriesHtml(sorted);
+  bindDeleteButtons(container);
+}
+
+document.getElementById('list-month-select').addEventListener('change', (e)=>{
+  listMonthFilter = e.target.value;
+  renderList();
+});
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+// ---------- グラフ ----------
+function renderGraph(){
+  const thisClosingLabel = closingMonthLabel(todayStr());
+
+  const thisMonthTotal = entries.filter(e=>closingMonthLabel(e.date)===thisClosingLabel)
+                                 .reduce((s,e)=>s+e.amount,0);
+  const allTotal = entries.reduce((s,e)=>s+e.amount,0);
+  document.getElementById('this-month-total').textContent = fmtYen(thisMonthTotal);
+  document.getElementById('all-total').textContent = fmtYen(allTotal);
+
+  // 月別集計（ゆめカードの締め日基準：11日〜翌月10日を1ヶ月として扱う）
+  const monthTotals = {};
+  entries.forEach(e=>{
+    const k = closingMonthLabel(e.date);
+    monthTotals[k] = (monthTotals[k]||0) + e.amount;
+  });
+  const months = Object.keys(monthTotals).sort();
+  const monthLabels = months.map(m=>{
+    const [y,mo] = m.split('-');
+    return `${parseInt(mo)}月`;
+  });
+  const monthValues = months.map(m=>monthTotals[m]);
+
+  if(monthlyChart) monthlyChart.destroy();
+  monthlyChart = new Chart(document.getElementById('monthlyChart'), {
+    type:'bar',
+    data:{
+      labels: monthLabels.length ? monthLabels : ["データなし"],
+      datasets:[{
+        data: monthValues.length ? monthValues : [0],
+        backgroundColor:'#5B9BD5',
+        borderRadius:6,
+        maxBarThickness:34
+      }]
+    },
+    options:{
+      plugins:{legend:{display:false}},
+      scales:{
+        y:{beginAtZero:true, ticks:{callback:v=>'¥'+v.toLocaleString()}, grid:{color:'#EAF2FA'}},
+        x:{grid:{display:false}}
+      }
+    }
+  });
+
+  // カテゴリ別（月選択）
+  const catSelect = document.getElementById('cat-month-select');
+  const prevSelected = catSelect.value;
+  catSelect.innerHTML = '<option value="__all__">全期間</option>' +
+    months.slice().reverse().map(m=>{
+      const [y,mo] = m.split('-');
+      return `<option value="${m}">${y}年${parseInt(mo)}月分</option>`;
+    }).join("");
+  if(prevSelected && [...catSelect.options].some(o=>o.value===prevSelected)){
+    catSelect.value = prevSelected;
+  }
+
+  drawCategoryChart(catSelect.value || "__all__");
+  renderPayTable(months, monthTotals);
+}
+
+function renderPayTable(months, monthTotals){
+  const wrap = document.getElementById('pay-table-wrap');
+  if(months.length === 0){
+    wrap.innerHTML = '<div class="empty">まだデータがないよ</div>';
+    return;
+  }
+  const rows = months.slice().reverse().map(m=>{
+    const [y,mo] = m.split('-').map(Number);
+    const shime = shimeDateOf(y, mo-1);
+    const pay = payDateOf(y, mo-1);
+    const ov = overrides[m] || {};
+    const shimeTag = ov.shime ? '<span class="manual-tag">手動</span>' : '';
+    const payTag = ov.pay ? '<span class="manual-tag">手動</span>' : '';
+    return `<tr>
+      <td>${y}年${mo}月分</td>
+      <td>${shime}${shimeTag}</td>
+      <td>${pay}${payTag}</td>
+      <td class="num">${fmtYen(monthTotals[m])}</td>
+      <td><button class="pay-edit-btn" data-month="${m}">✏️</button></td>
+    </tr>`;
+  }).join("");
+  wrap.innerHTML = `
+    <table class="pay-table">
+      <thead><tr><th>月</th><th>締め日</th><th>支払日</th><th>合計</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="font-size:10.5px;color:var(--ink-soft);margin-top:8px;">
+      ※10日締め・翌月4日払い（土日は翌営業日）で自動計算。祝日などでズレる月は✏️から個別に修正できるよ
+    </div>
+  `;
+  wrap.querySelectorAll('.pay-edit-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> openPayEditor(btn.dataset.month));
+  });
+}
+
+function openPayEditor(monthKey){
+  payEditMonth = monthKey;
+  const [y, mo] = monthKey.split('-').map(Number);
+  document.getElementById('pay-edit-title').textContent = `${y}年${mo}月分の締め日・支払日`;
+  document.getElementById('pay-edit-shime').value = getShimeISO(y, mo - 1);
+  document.getElementById('pay-edit-pay').value = getPayISO(y, mo - 1);
+  document.getElementById('pay-edit-modal').style.display = 'flex';
+}
+function closePayEditor(){
+  document.getElementById('pay-edit-modal').style.display = 'none';
+  payEditMonth = null;
+}
+document.getElementById('pay-edit-cancel').addEventListener('click', closePayEditor);
+document.getElementById('pay-edit-save').addEventListener('click', async ()=>{
+  if(!payEditMonth) return;
+  const shime = document.getElementById('pay-edit-shime').value;
+  const pay = document.getElementById('pay-edit-pay').value;
+  if(!shime && !pay){ showToast("日付を入れてね"); return; }
+  if(!overrides[payEditMonth]) overrides[payEditMonth] = {};
+  if(shime) overrides[payEditMonth].shime = shime;
+  if(pay) overrides[payEditMonth].pay = pay;
+  await saveOverrides();
+  closePayEditor();
+  showToast("締め日・支払日を更新したよ");
+  renderGraph();
+});
+document.getElementById('pay-edit-reset').addEventListener('click', async ()=>{
+  if(!payEditMonth) return;
+  delete overrides[payEditMonth];
+  await saveOverrides();
+  closePayEditor();
+  showToast("自動計算に戻したよ");
+  renderGraph();
+});
+
+function drawCategoryChart(monthFilter){
+  const target = monthFilter === "__all__" ? entries : entries.filter(e=>closingMonthLabel(e.date)===monthFilter);
+
+  const titleEl = document.getElementById('cat-month-entries-title');
+  if(monthFilter === "__all__"){
+    titleEl.textContent = "全期間の記録";
+  }else{
+    const [y,mo] = monthFilter.split('-');
+    titleEl.textContent = `${y}年${parseInt(mo)}月分の記録`;
+  }
+
+  const entriesWrap = document.getElementById('cat-month-entries');
+  const sortedTarget = [...target].sort((a,b)=> b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+  entriesWrap.innerHTML = buildEntriesHtml(sortedTarget);
+  bindDeleteButtons(entriesWrap);
+  const catTotals = CATS.map(c => target.filter(e=>e.cat===c).reduce((s,e)=>s+e.amount,0));
+  const hasData = catTotals.some(v=>v>0);
+
+  if(categoryChart) categoryChart.destroy();
+  categoryChart = new Chart(document.getElementById('categoryChart'), {
+    type:'doughnut',
+    data:{
+      labels: CATS,
+      datasets:[{
+        data: hasData ? catTotals : [1],
+        backgroundColor: hasData ? CAT_COLORS : ['#EAF2FA'],
+        borderWidth:2,
+        borderColor:'#fff'
+      }]
+    },
+    options:{
+      plugins:{
+        legend:{position:'bottom', labels:{boxWidth:12, font:{size:11}, padding:12}},
+        tooltip:{ enabled: hasData, callbacks:{ label: ctx => ` ${ctx.label}: ¥${ctx.parsed.toLocaleString()}` } }
+      },
+      cutout:'62%'
+    }
+  });
+}
+
+document.getElementById('cat-month-select').addEventListener('change', (e)=>{
+  drawCategoryChart(e.target.value);
+});
+
+document.getElementById('import-btn').addEventListener('click', ()=>{
+  document.getElementById('import-file').click();
+});
+
+document.getElementById('import-file').addEventListener('change', async (evt)=>{
+  const file = evt.target.files[0];
+  if(!file) return;
+
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array', cellDates:true});
+    const sheetName = wb.SheetNames.includes('支出記録') ? '支出記録' : wb.SheetNames[0];
+    const sheet = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, {defval:""});
+
+    let added = 0, skipped = 0;
+    const existingKeys = new Set(entries.map(e => `${e.date}|${e.dest}|${e.amount}`));
+
+    rows.forEach(row => {
+      const rawDate = row['日付'];
+      const dest = String(row['利用先'] || '').trim();
+      const amount = parseFloat(row['金額']);
+      const cat = String(row['カテゴリ'] || 'その他').trim();
+      const memo = String(row['メモ'] || '').trim();
+
+      if(!dest || !amount || isNaN(amount)) return;
+
+      let dateStr;
+      if(rawDate instanceof Date){
+        const y = rawDate.getFullYear(), m = pad2(rawDate.getMonth()+1), d = pad2(rawDate.getDate());
+        dateStr = `${y}-${m}-${d}`;
+      }else if(typeof rawDate === 'string' && rawDate){
+        const normalized = rawDate.replace(/\//g,'-');
+        const parts = normalized.split('-');
+        if(parts.length === 3){
+          dateStr = `${parts[0]}-${pad2(parseInt(parts[1]))}-${pad2(parseInt(parts[2]))}`;
+        }
+      }
+      if(!dateStr) return;
+
+      const key = `${dateStr}|${dest}|${amount}`;
+      if(existingKeys.has(key)){
+        skipped++;
+        return;
+      }
+      existingKeys.add(key);
+      entries.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2,6) + added,
+        date: dateStr, dest, amount, cat: cat || 'その他', memo
+      });
+      added++;
+    });
+
+    if(added > 0){
+      await saveEntries();
+    }
+    showToast(`読み込み完了：${added}件追加${skipped > 0 ? '（重複' + skipped + '件はスキップ）' : ''}`);
+    render();
+  }catch(err){
+    showToast("読み込みに失敗したよ。ファイル形式を確認してね");
+  }
+  evt.target.value = "";
+});
+
+document.getElementById('export-btn').addEventListener('click', ()=>{
+  if(entries.length === 0){
+    showToast("書き出せるデータがまだないよ");
+    return;
+  }
+  const sorted = [...entries].sort((a,b)=> a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  const rows = sorted.map(e => ({
+    "日付": e.date,
+    "利用先": e.dest,
+    "金額": e.amount,
+    "カテゴリ": e.cat,
+    "メモ": e.memo || ""
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:12},{wch:24},{wch:10},{wch:14},{wch:34}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "支出記録");
+  const today = todayStr().replace(/-/g,'');
+  XLSX.writeFile(wb, `ゆめカード家計簿_書き出し_${today}.xlsx`);
+  showToast("書き出したよ！ダウンロードを確認してね");
+});
+
+// ---------- タブ切り替え ----------
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-'+btn.dataset.view).classList.add('active');
+    if(btn.dataset.view === 'graph') renderGraph();
+    if(btn.dataset.view === 'list') renderList();
+  });
+});
+
+function render(){
+  renderList();
+  renderGraph();
+  updateDestDatalist();
+}
+
+loadEntries();
+
+// ---------- PWA: Service Worker登録（オフライン対応） ----------
+if("serviceWorker" in navigator){
+  window.addEventListener("load", ()=>{
+    navigator.serviceWorker.register("./service-worker.js").catch(()=>{
+      // 登録に失敗しても通常のWebページとしては動作する
+    });
+  });
+}
+
+// ---------- 表示だけをリセット（データ=localStorageには触れない） ----------
+document.getElementById('reset-cache-btn').addEventListener('click', async ()=>{
+  try{
+    if("caches" in window){
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+    if("serviceWorker" in navigator){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+    showToast("表示用データをリセットしたよ。再読み込みするね");
+    setTimeout(()=>{ location.reload(true); }, 900);
+  }catch(e){
+    showToast("リセットに失敗したよ。ブラウザを再起動して試してみてね");
+  }
+});
+
+
+
+// ---------- バックアップ保存(JSON) ----------
+document.getElementById('backup-save-btn').addEventListener('click', ()=>{
+  const payload = {
+    app: "yumecard-kakeibo",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    entries: entries,
+    overrides: overrides
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type: "application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = todayStr().replace(/-/g, '');
+  a.href = url;
+  a.download = `yumecard_backup_${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showToast("バックアップを保存したよ");
+});
+
+// ---------- バックアップ復元(JSON) ----------
+let pendingBackupData = null;
+
+document.getElementById('backup-restore-btn').addEventListener('click', ()=>{
+  document.getElementById('backup-restore-file').click();
+});
+
+document.getElementById('backup-restore-file').addEventListener('change', async (evt)=>{
+  const file = evt.target.files[0];
+  if(!file) return;
+  try{
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if(!data || !Array.isArray(data.entries)){
+      showToast("復元用のファイルとして読み込めなかったよ");
+      evt.target.value = "";
+      return;
+    }
+    pendingBackupData = data;
+    const dates = data.entries.map(e => e.date).filter(Boolean).sort();
+    const dateRange = dates.length ? `${dates[0]} 〜 ${dates[dates.length - 1]}` : "（記録なし）";
+    const createdAt = data.exportedAt ? new Date(data.exportedAt).toLocaleString('ja-JP') : "不明";
+    document.getElementById('backup-confirm-info').innerHTML =
+      `作成日時：${createdAt}<br>記録件数：${data.entries.length}件<br>期間：${dateRange}`;
+    document.getElementById('backup-confirm-modal').style.display = 'flex';
+  }catch(err){
+    showToast("読み込みに失敗したよ。ファイル形式を確認してね");
+  }
+  evt.target.value = "";
+});
+
+document.getElementById('backup-confirm-cancel').addEventListener('click', ()=>{
+  document.getElementById('backup-confirm-modal').style.display = 'none';
+  pendingBackupData = null;
+});
+
+document.getElementById('backup-confirm-merge').addEventListener('click', async ()=>{
+  if(!pendingBackupData) return;
+  const existingKeys = new Set(entries.map(e => `${e.date}|${e.dest}|${e.amount}`));
+  let added = 0;
+  pendingBackupData.entries.forEach(e=>{
+    const key = `${e.date}|${e.dest}|${e.amount}`;
+    if(!existingKeys.has(key)){
+      existingKeys.add(key);
+      entries.push({...e, id: e.id || (Date.now().toString(36) + Math.random().toString(36).slice(2, 6))});
+      added++;
+    }
+  });
+  if(pendingBackupData.overrides){
+    overrides = {...overrides, ...pendingBackupData.overrides};
+  }
+  await saveEntries();
+  await saveOverrides();
+  document.getElementById('backup-confirm-modal').style.display = 'none';
+  showToast(`復元完了：${added}件追加したよ`);
+  pendingBackupData = null;
+  render();
+});
+
+document.getElementById('backup-confirm-replace').addEventListener('click', async ()=>{
+  if(!pendingBackupData) return;
+  entries = pendingBackupData.entries.map(e => ({
+    ...e,
+    id: e.id || (Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + Math.random().toString(36).slice(2, 4))
+  }));
+  overrides = pendingBackupData.overrides || {};
+  await saveEntries();
+  await saveOverrides();
+  document.getElementById('backup-confirm-modal').style.display = 'none';
+  showToast(`復元完了：${entries.length}件に置き換えたよ`);
+  pendingBackupData = null;
+  render();
+});
+</script>
+</body>
+</html>
