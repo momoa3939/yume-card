@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -181,6 +182,19 @@
     white-space:nowrap;
   }
   .export-btn:active{background:var(--blue-soft);}
+
+  .list-actions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    margin-top:22px;
+    padding-top:16px;
+    border-top:1px dashed var(--blue-soft);
+  }
+  .list-actions .export-btn{
+    padding:11px 8px;
+    text-align:center;
+  }
 
   .entry{
     display:flex;
@@ -380,19 +394,20 @@
 
     <!-- 記録一覧画面 -->
     <section id="view-list" class="view">
-      <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
         <span>記録一覧</span>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <select class="month-select" id="list-month-select"></select>
-          <button id="import-btn" class="export-btn">📤 Excelから読み込む</button>
-          <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none;">
-          <button id="backup-save-btn" class="export-btn">📦 バックアップ保存</button>
-          <button id="backup-restore-btn" class="export-btn">📦 復元</button>
-          <input type="file" id="backup-restore-file" accept=".json" style="display:none;">
-          <button id="export-btn" class="export-btn">📥 Excelに書き出す</button>
-        </div>
+        <select class="month-select" id="list-month-select"></select>
       </div>
       <div id="list-container"></div>
+
+      <div class="list-actions">
+        <button id="export-btn" class="export-btn">📥 Excelに書き出す</button>
+        <button id="import-btn" class="export-btn">📤 Excelから読み込む</button>
+        <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none;">
+        <button id="backup-save-btn" class="export-btn">📦 バックアップ保存</button>
+        <button id="backup-restore-btn" class="export-btn">📦 復元</button>
+        <input type="file" id="backup-restore-file" accept=".json" style="display:none;">
+      </div>
     </section>
 
     <!-- グラフ画面 -->
