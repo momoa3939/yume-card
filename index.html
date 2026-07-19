@@ -439,8 +439,10 @@
       <div class="section-title">アプリの調子が悪いとき</div>
       <div class="chart-wrap" style="text-align:center;">
         <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:10px;line-height:1.6;">
-          表示が古いまま・崩れて見える場合は、下のボタンを押してみてね。<br>
-          入力したデータ（記録一覧）は消えません。表示用のキャッシュだけをリセットします。
+          表示が古いまま・崩れて見える場合は、<br>
+          下のボタンを押してみてね。<br>
+          入力したデータ（記録一覧）は消えません。<br>
+          表示用のキャッシュだけをリセットします。
         </div>
         <button id="reset-cache-btn" class="export-btn" style="width:100%;">🔄 表示をリセットする</button>
       </div>
@@ -879,7 +881,8 @@ function renderPayTable(months, monthTotals){
       <tbody>${rows}</tbody>
     </table>
     <div style="font-size:10.5px;color:var(--ink-soft);margin-top:8px;">
-      ※10日締め・翌月4日払い（土日は翌営業日）で自動計算。祝日などでズレる月は✏️から個別に修正できるよ
+      ※10日締め・翌月4日払い（土日は翌営業日）で自動計算。<br>
+      祝日などでズレる月は✏️から個別に修正できるよ
     </div>
   `;
   wrap.querySelectorAll('.pay-edit-btn').forEach(btn=>{
