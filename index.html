@@ -334,6 +334,57 @@
   .pay-edit-btn{
     background:none; border:none; font-size:14px; cursor:pointer; padding:2px 6px;
   }
+
+  .dest-suggest{
+    position:absolute;
+    left:0; right:0; top:100%;
+    margin-top:4px;
+    background:var(--white);
+    border:1.5px solid var(--line);
+    border-radius:10px;
+    max-height:220px;
+    overflow-y:auto;
+    z-index:20;
+    display:none;
+    box-shadow:0 6px 16px rgba(51,64,74,0.14);
+  }
+  .dest-suggest-item{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    padding:10px 6px 10px 14px;
+    border-bottom:1px dashed var(--line);
+  }
+  .dest-suggest-item:last-child{border-bottom:none;}
+  .dest-suggest-text{
+    flex:1;
+    min-width:0;
+    font-size:14.5px;
+    color:var(--ink);
+    cursor:pointer;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .dest-suggest-del{
+    flex:none;
+    background:none;
+    border:none;
+    color:var(--ink-soft);
+    font-size:15px;
+    line-height:1;
+    padding:4px 12px;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .dest-suggest-del:active{color:var(--danger);}
+  .dest-suggest-empty{
+    padding:12px 14px;
+    font-size:12.5px;
+    color:var(--ink-soft);
+    text-align:center;
+  }
 </style>
 </head>
 <body>
@@ -360,10 +411,10 @@
         <label>日付</label>
         <input type="date" id="in-date">
       </div>
-      <div class="field">
+      <div class="field" style="position:relative;">
         <label>利用先</label>
-        <input type="text" id="in-dest" list="dest-datalist" placeholder="例：ゆめタウン南岩国店" autocomplete="off">
-        <datalist id="dest-datalist"></datalist>
+        <input type="text" id="in-dest" placeholder="例：ゆめタウン南岩国店" autocomplete="off">
+        <div id="dest-suggest" class="dest-suggest"></div>
       </div>
       <div class="row2">
         <div class="field">
@@ -413,7 +464,7 @@
     <section id="view-graph" class="view">
       <div class="summary-cards">
         <div class="card">
-          <div class="label">今月の合計</div>
+          <div class="label" id="this-month-total-label">今月の合計</div>
           <div class="value" id="this-month-total">¥0</div>
         </div>
         <div class="card">
@@ -496,7 +547,7 @@ let entries = [];
 let overrides = {}; // { "YYYY-MM": { shime: "YYYY-MM-DD", pay: "YYYY-MM-DD" } }
 let monthlyChart, categoryChart;
 let editingId = null;
-let listMonthFilter = "__all__";
+let listMonthFilter = null; // nullのままなら初回に「今年の今月」をデフォルト表示する
 let payEditMonth = null;
 
 function todayStr(){
@@ -513,13 +564,88 @@ document.getElementById('in-amount').addEventListener('input', (e)=>{
 });
 
 // 利用先の入力候補（オートコンプリート）を、過去に入力した利用先から自動生成
-function updateDestDatalist(){
-  const list = document.getElementById('dest-datalist');
-  if(!list) return;
-  const uniqueDests = [...new Set(entries.map(e => e.dest).filter(Boolean))];
-  uniqueDests.sort((a,b) => a.localeCompare(b, 'ja'));
-  list.innerHTML = uniqueDests.map(d => `<option value="${escapeHtml(d)}"></option>`).join('');
+// ※候補から「×」で消しても、記録済みデータ自体は消えない（候補一覧からだけ除外）
+const DEST_EXCLUDED_KEY = "yumecard:destExcluded";
+let destExcluded = [];
+let destSuggestList = [];
+
+function loadDestExcluded(){
+  try{
+    const raw = localStorage.getItem(DEST_EXCLUDED_KEY);
+    destExcluded = raw ? JSON.parse(raw) : [];
+  }catch(e){
+    destExcluded = [];
+  }
 }
+function saveDestExcluded(){
+  try{
+    localStorage.setItem(DEST_EXCLUDED_KEY, JSON.stringify(destExcluded));
+  }catch(e){}
+}
+
+function updateDestDatalist(){
+  const uniqueDests = [...new Set(entries.map(e => e.dest).filter(Boolean))];
+  destSuggestList = uniqueDests
+    .filter(d => !destExcluded.includes(d))
+    .sort((a,b) => a.localeCompare(b, 'ja'));
+}
+
+function renderDestSuggestions(filterText){
+  const box = document.getElementById('dest-suggest');
+  if(!box) return;
+  const q = (filterText || "").trim();
+  const matches = q ? destSuggestList.filter(d => d.includes(q)) : destSuggestList;
+
+  if(matches.length === 0){
+    box.style.display = 'none';
+    box.innerHTML = '';
+    return;
+  }
+
+  box.innerHTML = matches.map(d => `
+    <div class="dest-suggest-item">
+      <span class="dest-suggest-text" data-dest="${escapeHtml(d)}">${escapeHtml(d)}</span>
+      <button type="button" class="dest-suggest-del" data-dest="${escapeHtml(d)}" aria-label="候補から削除">×</button>
+    </div>
+  `).join('');
+  box.style.display = 'block';
+
+  box.querySelectorAll('.dest-suggest-text').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      document.getElementById('in-dest').value = el.dataset.dest;
+      hideDestSuggestions();
+    });
+  });
+  box.querySelectorAll('.dest-suggest-del').forEach(btn=>{
+    btn.addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      const d = btn.dataset.dest;
+      if(!destExcluded.includes(d)){
+        destExcluded.push(d);
+        saveDestExcluded();
+      }
+      updateDestDatalist();
+      renderDestSuggestions(document.getElementById('in-dest').value);
+    });
+  });
+}
+
+function hideDestSuggestions(){
+  const box = document.getElementById('dest-suggest');
+  if(box) box.style.display = 'none';
+}
+
+document.getElementById('in-dest').addEventListener('input', (e)=>{
+  renderDestSuggestions(e.target.value);
+});
+document.getElementById('in-dest').addEventListener('focus', (e)=>{
+  renderDestSuggestions(e.target.value);
+});
+document.addEventListener('click', (e)=>{
+  if(!e.target.closest('#in-dest') && !e.target.closest('#dest-suggest')){
+    hideDestSuggestions();
+  }
+});
 
 function showToast(msg){
   const t = document.getElementById('toast');
@@ -529,6 +655,8 @@ function showToast(msg){
 }
 
 async function loadEntries(){
+  loadDestExcluded();
+
   let seeded = false;
   try{
     seeded = localStorage.getItem(SEEDED_FLAG_KEY) === "true";
@@ -804,6 +932,10 @@ function renderList(){
     }).join("");
   if(prevSelected && [...select.options].some(o=>o.value===prevSelected)){
     select.value = prevSelected;
+  }else{
+    // 初回表示のデフォルトは「今年の今月」。データがなければ「全期間」のまま
+    const thisClosing = closingMonthLabel(todayStr());
+    select.value = months.includes(thisClosing) ? thisClosing : "__all__";
   }
   listMonthFilter = select.value || "__all__";
 
@@ -966,6 +1098,21 @@ document.getElementById('pay-edit-reset').addEventListener('click', async ()=>{
 
 function drawCategoryChart(monthFilter){
   const target = monthFilter === "__all__" ? entries : entries.filter(e=>closingMonthLabel(e.date)===monthFilter);
+
+  // 上部の「今月の合計」カードを、選んだ月に連動させる
+  const cardLabelEl = document.getElementById('this-month-total-label');
+  const cardValueEl = document.getElementById('this-month-total');
+  const cardTotal = target.reduce((s,e)=>s+e.amount,0);
+  const thisClosingLabel = closingMonthLabel(todayStr());
+  if(monthFilter === "__all__"){
+    cardLabelEl.textContent = "全期間の合計";
+  }else if(monthFilter === thisClosingLabel){
+    cardLabelEl.textContent = "今月の合計";
+  }else{
+    const [y,mo] = monthFilter.split('-');
+    cardLabelEl.textContent = `${parseInt(mo)}月の合計`;
+  }
+  cardValueEl.textContent = fmtYen(cardTotal);
 
   const titleEl = document.getElementById('cat-month-entries-title');
   if(monthFilter === "__all__"){
