@@ -577,6 +577,44 @@ async function saveOverrides(){
   }
 }
 
+// ---------- バックアップ催促 ----------
+const BACKUP_LAST_KEY = "yumeCard_lastBackup";
+const BACKUP_COUNT_KEY = "yumeCard_todayCount";
+const BACKUP_SHOWN_KEY = "yumeCard_reminderShownDate";
+
+function daysSinceLastBackup(){
+  const t = localStorage.getItem(BACKUP_LAST_KEY);
+  if(!t) return 999;
+  return (Date.now() - Number(t)) / (1000*60*60*24);
+}
+
+// 今日の新規入力件数をカウント(日付が変わったらリセット)
+function bumpTodayCount(){
+  const today = todayStr();
+  let data = {date: today, count: 0};
+  try{
+    const raw = localStorage.getItem(BACKUP_COUNT_KEY);
+    if(raw) data = JSON.parse(raw);
+  }catch(e){}
+  if(data.date !== today){ data = {date: today, count: 0}; }
+  data.count += 1;
+  localStorage.setItem(BACKUP_COUNT_KEY, JSON.stringify(data));
+  return data.count;
+}
+
+// 「3件以上入力したその日のうち」または「前回バックアップから3日以上」で催促(1日1回まで)
+function checkBackupReminder(){
+  const todayCount = bumpTodayCount();
+  const daysSince = daysSinceLastBackup();
+  const shouldRemind = (todayCount >= 3) || (daysSince >= 3);
+  const today = todayStr();
+  const shownDate = localStorage.getItem(BACKUP_SHOWN_KEY);
+  if(shouldRemind && shownDate !== today){
+    localStorage.setItem(BACKUP_SHOWN_KEY, today);
+    setTimeout(()=>{ showToast("💾 バックアップも忘れずに"); }, 1800);
+  }
+}
+
 function fmtYen(n){
   return "¥" + Math.round(n).toLocaleString();
 }
@@ -666,6 +704,7 @@ document.getElementById('save-btn').addEventListener('click', async ()=>{
     entries.push(entry);
     await saveEntries();
     showToast("記録したよ！");
+    checkBackupReminder();
   }
 
   document.getElementById('in-dest').value = "";
@@ -1123,6 +1162,11 @@ document.getElementById('backup-save-btn').addEventListener('click', ()=>{
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+
+  localStorage.setItem(BACKUP_LAST_KEY, Date.now().toString());
+  localStorage.removeItem(BACKUP_COUNT_KEY);
+  localStorage.removeItem(BACKUP_SHOWN_KEY);
+
   showToast("バックアップを保存したよ");
 });
 
