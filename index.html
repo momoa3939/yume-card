@@ -534,6 +534,18 @@
   </div>
 </div>
 
+<div id="backup-remind-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-title">💾 そろそろバックアップしよう</div>
+    <div style="font-size:13px; color:var(--ink); line-height:1.7; margin-bottom:16px;">
+      前回のバックアップから少し時間が経ったよ。<br>
+      データを守るために、ここで一度バックアップを取っておこうね。
+    </div>
+    <button id="backup-remind-do" class="save-btn">📦 バックアップする</button>
+    <button id="backup-remind-later" class="export-btn" style="width:100%; margin-top:8px;">あとで</button>
+  </div>
+</div>
+
 <script>
 const CATS = ["コスメ用品","美容関係","ランチ・カフェ","服・靴・アクセサリー","ネットショップ","プレゼント","宝くじ","その他"];
 const CAT_COLORS = ["#528EC5","#A9D2C8","#BFD4B5","#C7B6D6","#E2B6BB","#DCCBBE","#E6D8A7","#D4D7DB"];
@@ -739,8 +751,15 @@ function checkBackupReminder(){
   const shownDate = localStorage.getItem(BACKUP_SHOWN_KEY);
   if(shouldRemind && shownDate !== today){
     localStorage.setItem(BACKUP_SHOWN_KEY, today);
-    setTimeout(()=>{ showToast("💾 バックアップも忘れずに"); }, 1800);
+    setTimeout(()=>{ openBackupRemindModal(); }, 1800);
   }
+}
+
+function openBackupRemindModal(){
+  document.getElementById('backup-remind-modal').style.display = 'flex';
+}
+function closeBackupRemindModal(){
+  document.getElementById('backup-remind-modal').style.display = 'none';
 }
 
 function fmtYen(n){
@@ -1291,7 +1310,7 @@ document.getElementById('reset-cache-btn').addEventListener('click', async ()=>{
 
 
 // ---------- バックアップ保存(JSON) ----------
-document.getElementById('backup-save-btn').addEventListener('click', ()=>{
+function performBackupSave(){
   const payload = {
     app: "yumecard-kakeibo",
     version: 1,
@@ -1315,6 +1334,16 @@ document.getElementById('backup-save-btn').addEventListener('click', ()=>{
   localStorage.removeItem(BACKUP_SHOWN_KEY);
 
   showToast("バックアップを保存したよ");
+}
+
+document.getElementById('backup-save-btn').addEventListener('click', performBackupSave);
+
+document.getElementById('backup-remind-do').addEventListener('click', ()=>{
+  performBackupSave();
+  closeBackupRemindModal();
+});
+document.getElementById('backup-remind-later').addEventListener('click', ()=>{
+  closeBackupRemindModal();
 });
 
 // ---------- バックアップ復元(JSON) ----------
