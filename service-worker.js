@@ -1,14 +1,16 @@
 // ゆめカード家計簿 - Service Worker
 // オフラインでも使えるように、必要なファイルをまとめてキャッシュする
 
-const CACHE_NAME = "yumecard-kakeibo-v1";
+const CACHE_NAME = "yumecard-kakeibo-v2";
 const FILES_TO_CACHE = [
   "./index.html",
   "./manifest.json",
   "./lib/chart.umd.min.js",
   "./lib/xlsx.full.min.js",
   "./icons/icon-192.png",
-  "./icons/icon-512.png"
+  "./icons/icon-512.png",
+  "./icons/icon-192-maskable.png",
+  "./icons/icon-512-maskable.png"
 ];
 
 // インストール時：必要なファイルを事前にキャッシュ
