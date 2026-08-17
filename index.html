@@ -221,6 +221,18 @@
     color:var(--ink-soft);
     margin-top:5px;
   }
+  .entry .bill-month-edit{
+    display:block;
+    background:none;
+    border:none;
+    color:var(--blue-deep);
+    font-size:10.5px;
+    padding:2px 0;
+    margin-top:2px;
+    cursor:pointer;
+    text-decoration:underline;
+    text-underline-offset:2px;
+  }
   .entry .memo{font-size:12px;color:var(--ink-soft);margin-top:4px;line-height:1.4;}
   .entry .right{text-align:right;white-space:nowrap;}
   .entry .amount{font-size:15px;font-weight:700;}
@@ -546,6 +558,22 @@
   </div>
 </div>
 
+<div id="bill-month-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-title">請求月を修正</div>
+    <div style="font-size:12px; color:var(--ink-soft); line-height:1.6; margin-bottom:12px;">
+      ETCの遅延請求など、実際の請求が自動計算とズレる時だけ変更してね。<br>
+      通常はそのままでOK。
+    </div>
+    <input type="month" id="bill-month-input" style="width:100%; padding:10px; border:1.5px solid var(--line); border-radius:8px; font-size:14px; color:var(--ink); font-family:inherit;">
+    <button id="bill-month-save" class="save-btn" style="margin-top:14px;">この請求月にする</button>
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <button id="bill-month-reset" class="export-btn" style="flex:1;">自動計算に戻す</button>
+      <button id="bill-month-cancel" class="export-btn" style="flex:1;">キャンセル</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const CATS = ["コスメ用品","美容関係","ランチ・カフェ","服・靴・アクセサリー","ネットショップ","プレゼント","宝くじ","その他"];
 const CAT_COLORS = ["#528EC5","#A9D2C8","#BFD4B5","#C7B6D6","#E2B6BB","#DCCBBE","#E6D8A7","#D4D7DB"];
@@ -561,6 +589,7 @@ let monthlyChart, categoryChart;
 let editingId = null;
 let listMonthFilter = null; // nullのままなら初回に「今年の今月」をデフォルト表示する
 let payEditMonth = null;
+let billMonthEditId = null;
 
 function todayStr(){
   const d = new Date();
@@ -823,6 +852,12 @@ function closingMonthLabel(dateStr){
   return `${y}-${pad2(m+1)}`;
 }
 
+// エントリーごとに「請求月」を手動で上書きしている場合はそちらを優先する
+// (ETCの遅延請求など、利用日ベースの自動計算とズレるものに使う)
+function effectiveClosingMonth(e){
+  return e.billMonth || closingMonthLabel(e.date);
+}
+
 // ---------- 入力 ----------
 document.getElementById('save-btn').addEventListener('click', async ()=>{
   const date = document.getElementById('in-date').value;
@@ -906,16 +941,22 @@ function buildEntriesHtml(list){
     return '<div class="empty">この月の記録はまだないよ</div>';
   }
   return list.map(e => {
-    const {y,m} = closingMonthOf(e.date);
-    const shime = shimeDateOf(y,m);
-    const pay = payDateOf(y,m);
+    const billKey = effectiveClosingMonth(e);
+    const [by, bmo] = billKey.split('-').map(Number);
+    const shime = shimeDateOf(by, bmo - 1);
+    const pay = payDateOf(by, bmo - 1);
+    const isOverridden = !!e.billMonth;
     return `
     <div class="entry">
       <div class="left">
         <div class="date">${e.date}</div>
         <div class="dest">${escapeHtml(e.dest)}</div>
         <span class="cat">${escapeHtml(e.cat)}</span>
-        <div class="pay-info">締め ${shime}　→　支払 ${pay}</div>
+        <div class="pay-info">
+          締め ${shime}　→　支払 ${pay}
+          ${isOverridden ? `<span class="manual-tag">${bmo}月請求に変更済み</span>` : ""}
+        </div>
+        <button class="bill-month-edit" data-id="${e.id}">請求月を修正</button>
         ${e.memo ? `<div class="memo">${escapeHtml(e.memo)}</div>` : ""}
       </div>
       <div class="right">
@@ -934,6 +975,9 @@ function bindDeleteButtons(container){
   container.querySelectorAll('.edit').forEach(btn=>{
     btn.addEventListener('click', ()=> startEdit(btn.dataset.id));
   });
+  container.querySelectorAll('.bill-month-edit').forEach(btn=>{
+    btn.addEventListener('click', ()=> openBillMonthEditor(btn.dataset.id));
+  });
 }
 
 function renderList(){
@@ -941,7 +985,7 @@ function renderList(){
   const select = document.getElementById('list-month-select');
 
   // 月選択肢の生成
-  const monthsSet = new Set(entries.map(e => closingMonthLabel(e.date)));
+  const monthsSet = new Set(entries.map(e => effectiveClosingMonth(e)));
   const months = [...monthsSet].sort();
   const prevSelected = select.value || listMonthFilter;
   select.innerHTML = '<option value="__all__">全期間</option>' +
@@ -958,7 +1002,7 @@ function renderList(){
   }
   listMonthFilter = select.value || "__all__";
 
-  const filtered = listMonthFilter === "__all__" ? entries : entries.filter(e => closingMonthLabel(e.date) === listMonthFilter);
+  const filtered = listMonthFilter === "__all__" ? entries : entries.filter(e => effectiveClosingMonth(e) === listMonthFilter);
 
   if(filtered.length === 0){
     container.innerHTML = entries.length === 0
@@ -984,7 +1028,7 @@ function escapeHtml(s){
 function renderGraph(){
   const thisClosingLabel = closingMonthLabel(todayStr());
 
-  const thisMonthTotal = entries.filter(e=>closingMonthLabel(e.date)===thisClosingLabel)
+  const thisMonthTotal = entries.filter(e=>effectiveClosingMonth(e)===thisClosingLabel)
                                  .reduce((s,e)=>s+e.amount,0);
   const allTotal = entries.reduce((s,e)=>s+e.amount,0);
   document.getElementById('this-month-total').textContent = fmtYen(thisMonthTotal);
@@ -993,7 +1037,7 @@ function renderGraph(){
   // 月別集計（ゆめカードの締め日基準：11日〜翌月10日を1ヶ月として扱う）
   const monthTotals = {};
   entries.forEach(e=>{
-    const k = closingMonthLabel(e.date);
+    const k = effectiveClosingMonth(e);
     monthTotals[k] = (monthTotals[k]||0) + e.amount;
   });
   const months = Object.keys(monthTotals).sort();
@@ -1115,8 +1159,51 @@ document.getElementById('pay-edit-reset').addEventListener('click', async ()=>{
   renderGraph();
 });
 
+// ---------- 請求月の個別修正(ETCなど自動計算からズレるエントリー用) ----------
+function openBillMonthEditor(id){
+  const e = entries.find(x => x.id === id);
+  if(!e) return;
+  billMonthEditId = id;
+  document.getElementById('bill-month-input').value = effectiveClosingMonth(e);
+  document.getElementById('bill-month-modal').style.display = 'flex';
+}
+function closeBillMonthEditor(){
+  document.getElementById('bill-month-modal').style.display = 'none';
+  billMonthEditId = null;
+}
+document.getElementById('bill-month-cancel').addEventListener('click', closeBillMonthEditor);
+document.getElementById('bill-month-save').addEventListener('click', async ()=>{
+  if(!billMonthEditId) return;
+  const val = document.getElementById('bill-month-input').value;
+  if(!val){ showToast("月を選んでね"); return; }
+  const idx = entries.findIndex(x => x.id === billMonthEditId);
+  if(idx !== -1){
+    const autoMonth = closingMonthLabel(entries[idx].date);
+    if(val === autoMonth){
+      delete entries[idx].billMonth;
+    }else{
+      entries[idx].billMonth = val;
+    }
+    await saveEntries();
+  }
+  closeBillMonthEditor();
+  showToast("請求月を変更したよ");
+  render();
+});
+document.getElementById('bill-month-reset').addEventListener('click', async ()=>{
+  if(!billMonthEditId) return;
+  const idx = entries.findIndex(x => x.id === billMonthEditId);
+  if(idx !== -1){
+    delete entries[idx].billMonth;
+    await saveEntries();
+  }
+  closeBillMonthEditor();
+  showToast("自動計算に戻したよ");
+  render();
+});
+
 function drawCategoryChart(monthFilter){
-  const target = monthFilter === "__all__" ? entries : entries.filter(e=>closingMonthLabel(e.date)===monthFilter);
+  const target = monthFilter === "__all__" ? entries : entries.filter(e=>effectiveClosingMonth(e)===monthFilter);
 
   // 上部の「今月の合計」カードを、選んだ月に連動させる
   const cardLabelEl = document.getElementById('this-month-total-label');
