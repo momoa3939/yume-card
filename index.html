@@ -74,7 +74,7 @@
     padding:13px 0;
     background:none;
     border:none;
-    font-size:14px;
+    font-size:12.5px;
     font-weight:600;
     color:var(--ink-soft);
     font-family:inherit;
@@ -414,6 +414,7 @@
     <button class="tab-btn active" data-view="input">入力</button>
     <button class="tab-btn" data-view="list">記録一覧</button>
     <button class="tab-btn" data-view="graph">グラフ</button>
+    <button class="tab-btn" data-view="dest">利用先別</button>
   </nav>
 
   <main>
@@ -512,6 +513,29 @@
           表示用のキャッシュだけをリセットします。
         </div>
         <button id="reset-cache-btn" class="export-btn" style="width:100%;">🔄 表示をリセットする</button>
+      </div>
+    </section>
+
+    <!-- 利用先別画面 -->
+    <section id="view-dest" class="view">
+      <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <span>利用先別</span>
+        <div style="display:flex; gap:6px;">
+          <select class="month-select" id="dest-year-select" style="width:80px;"></select>
+          <select class="month-select" id="dest-select" style="max-width:150px;"></select>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div class="label" id="dest-total-label">合計</div>
+        <div class="value" id="dest-total">¥0</div>
+      </div>
+
+      <div id="dest-table-wrap"></div>
+
+      <div style="font-size:11px;color:var(--ink-soft);margin-top:10px;line-height:1.6;">
+        ※その年に3回以上利用した利用先だけが選択肢に出てきます。<br>
+        1〜2回だけの利用先は対象外です。
       </div>
     </section>
   </main>
@@ -1144,6 +1168,106 @@ function renderGraph(){
   renderPayTable(months, monthTotals);
 }
 
+// ---------- 利用先別 ----------
+let destSelectedYear = null;
+let destSelectedDest = "__all__";
+
+function getCalendarYear(dateStr){
+  return dateStr.slice(0, 4);
+}
+
+function renderDestSummary(){
+  const yearSelect = document.getElementById('dest-year-select');
+  const destSelect = document.getElementById('dest-select');
+  const wrap = document.getElementById('dest-table-wrap');
+  if(!yearSelect || !destSelect || !wrap) return;
+
+  if(entries.length === 0){
+    yearSelect.innerHTML = '';
+    destSelect.innerHTML = '';
+    document.getElementById('dest-total-label').textContent = '合計';
+    document.getElementById('dest-total').textContent = '¥0';
+    wrap.innerHTML = '<div class="empty">まだ記録がないよ</div>';
+    return;
+  }
+
+  // 年の選択肢(1月〜12月の暦年ベース)
+  const years = [...new Set(entries.map(e => getCalendarYear(e.date)))].sort().reverse();
+  const prevYear = destSelectedYear;
+  yearSelect.innerHTML = years.map(y => `<option value="${y}">${y}年</option>`).join("");
+  if(prevYear && years.includes(prevYear)){
+    yearSelect.value = prevYear;
+  }else{
+    const thisYear = todayStr().slice(0, 4);
+    yearSelect.value = years.includes(thisYear) ? thisYear : years[0];
+  }
+  destSelectedYear = yearSelect.value;
+
+  const yearEntries = entries.filter(e => getCalendarYear(e.date) === destSelectedYear);
+
+  // その年に3回以上利用した利用先だけを抽出
+  const countMap = {};
+  yearEntries.forEach(e=>{ countMap[e.dest] = (countMap[e.dest] || 0) + 1; });
+  const frequentDests = Object.keys(countMap)
+    .filter(d => countMap[d] >= 3)
+    .sort((a,b)=> countMap[b] - countMap[a] || a.localeCompare(b, 'ja'));
+
+  const prevDest = destSelectedDest;
+  destSelect.innerHTML = '<option value="__all__">すべて(頻出の利用先)</option>' +
+    frequentDests.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}(${countMap[d]}回)</option>`).join("");
+  if(prevDest && (prevDest === "__all__" || frequentDests.includes(prevDest))){
+    destSelect.value = prevDest;
+  }else{
+    destSelect.value = "__all__";
+  }
+  destSelectedDest = destSelect.value;
+
+  if(frequentDests.length === 0){
+    document.getElementById('dest-total-label').textContent = `${destSelectedYear}年の合計`;
+    document.getElementById('dest-total').textContent = '¥0';
+    wrap.innerHTML = '<div class="empty">この年はまだ3回以上利用した利用先がないよ</div>';
+    return;
+  }
+
+  const targetDests = destSelectedDest === "__all__" ? frequentDests : [destSelectedDest];
+  const targetEntries = yearEntries
+    .filter(e => targetDests.includes(e.dest))
+    .sort((a,b)=> b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+
+  const total = targetEntries.reduce((s,e)=>s+e.amount, 0);
+  document.getElementById('dest-total-label').textContent =
+    destSelectedDest === "__all__" ? `${destSelectedYear}年・頻出利用先の合計` : `${destSelectedYear}年・${destSelectedDest}の合計`;
+  document.getElementById('dest-total').textContent = fmtYen(total);
+
+  const rows = targetEntries.map(e=>{
+    const [y, m, d] = e.date.split('-');
+    const md = `${parseInt(m)}/${parseInt(d)}`;
+    return `<tr>
+      <td>${md}</td>
+      <td>${escapeHtml(e.dest)}</td>
+      <td>${e.memo ? escapeHtml(e.memo) : '－'}</td>
+      <td class="num">${fmtYen(e.amount)}</td>
+    </tr>`;
+  }).join("");
+
+  wrap.innerHTML = `
+    <table class="pay-table">
+      <thead><tr><th>月日</th><th>利用先</th><th>メモ</th><th>金額</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+document.getElementById('dest-year-select').addEventListener('change', (e)=>{
+  destSelectedYear = e.target.value;
+  destSelectedDest = "__all__";
+  renderDestSummary();
+});
+document.getElementById('dest-select').addEventListener('change', (e)=>{
+  destSelectedDest = e.target.value;
+  renderDestSummary();
+});
+
 function renderPayTable(months, monthTotals){
   const wrap = document.getElementById('pay-table-wrap');
   if(months.length === 0){
@@ -1413,6 +1537,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     document.getElementById('view-'+btn.dataset.view).classList.add('active');
     if(btn.dataset.view === 'graph') renderGraph();
     if(btn.dataset.view === 'list') renderList();
+    if(btn.dataset.view === 'dest') renderDestSummary();
   });
 });
 
@@ -1420,6 +1545,7 @@ function render(){
   renderList();
   renderGraph();
   updateDestDatalist();
+  renderDestSummary();
 }
 
 loadEntries();
