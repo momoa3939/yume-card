@@ -1019,16 +1019,16 @@ function renderList(){
   // 月選択肢の生成
   const monthsSet = new Set(entries.map(e => effectiveClosingMonth(e)));
   const months = [...monthsSet].sort();
-  const prevSelected = select.value || sharedMonthFilter;
+  const prevSelected = sharedMonthFilter;
   select.innerHTML = '<option value="__all__">全期間</option>' +
     months.slice().reverse().map(m=>{
       const [y,mo] = m.split('-');
       return `<option value="${m}">${y}年${parseInt(mo)}月分</option>`;
     }).join("");
-  if(prevSelected && [...select.options].some(o=>o.value===prevSelected)){
+  if(prevSelected && (prevSelected === "__all__" || months.includes(prevSelected))){
     select.value = prevSelected;
   }else{
-    // 初回表示のデフォルトは「今年の今月」。データがなければ「全期間」のまま
+    // 初回表示、または選択中の月のデータがもう無い場合のデフォルトは「今年の今月」
     const thisClosing = closingMonthLabel(todayStr());
     select.value = months.includes(thisClosing) ? thisClosing : "__all__";
   }
@@ -1102,14 +1102,14 @@ function renderGraph(){
 
   // カテゴリ別（月選択）：記録一覧タブと選択中の月を共有する
   const catSelect = document.getElementById('cat-month-select');
-  const prevSelected = catSelect.value || sharedMonthFilter;
+  const prevSelected = sharedMonthFilter;
   catSelect.innerHTML = '<option value="__all__">全期間</option>' +
     months.slice().reverse().map(m=>{
       const [y,mo] = m.split('-');
       return `<option value="${m}">${y}年${parseInt(mo)}月分</option>`;
     }).join("");
 
-  if(prevSelected && [...catSelect.options].some(o=>o.value===prevSelected)){
+  if(prevSelected && (prevSelected === "__all__" || months.includes(prevSelected))){
     catSelect.value = prevSelected;
   }else{
     const thisMonthLabel = closingMonthLabel(todayStr());
