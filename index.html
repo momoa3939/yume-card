@@ -207,7 +207,7 @@
   .entry .left{flex:1;min-width:0;}
   .entry .date{font-size:11px;color:var(--ink-soft);}
   .entry .dest{font-size:14.5px;font-weight:600;margin-top:2px;}
-  .entry .cat{
+  .cat{
     display:inline-block;
     font-size:11px;
     color:var(--blue-deep);
@@ -1242,26 +1242,8 @@ function renderDestSummary(){
     destSelectedDest === "__all__" ? `${destSelectedYear}年・頻出利用先の合計` : `${destSelectedYear}年・${destSelectedDest}の合計`;
   document.getElementById('dest-total').textContent = fmtYen(total);
 
-  const rows = targetEntries.map(e=>{
-    const [y, m, d] = e.date.split('-');
-    const md = `${parseInt(m)}/${parseInt(d)}`;
-    return `<tr>
-      <td>${md}</td>
-      <td>
-        ${escapeHtml(e.dest)}
-        <span class="cat" style="display:block; width:fit-content; margin-top:3px;">${escapeHtml(e.cat)}</span>
-      </td>
-      <td>${e.memo ? escapeHtml(e.memo) : '－'}</td>
-      <td class="num">${fmtYen(e.amount)}</td>
-    </tr>`;
-  }).join("");
-
-  wrap.innerHTML = `
-    <table class="pay-table">
-      <thead><tr><th>月日</th><th>利用先</th><th>メモ</th><th>金額</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
+  wrap.innerHTML = buildEntriesHtml(targetEntries);
+  bindDeleteButtons(wrap);
 }
 
 document.getElementById('dest-year-select').addEventListener('change', (e)=>{
