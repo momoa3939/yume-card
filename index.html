@@ -397,6 +397,10 @@
     color:var(--ink-soft);
     text-align:center;
   }
+  #in-memo.memo-autofilled{
+    background:var(--blue-pale);
+    border-color:var(--blue-deep);
+  }
 </style>
 </head>
 <body>
@@ -587,7 +591,7 @@ let entries = [];
 let overrides = {}; // { "YYYY-MM": { shime: "YYYY-MM-DD", pay: "YYYY-MM-DD" } }
 let monthlyChart, categoryChart;
 let editingId = null;
-let listMonthFilter = null; // nullのままなら初回に「今年の今月」をデフォルト表示する
+let sharedMonthFilter = null; // 記録一覧とグラフの月選択を連動させる共有状態(nullなら初回は「今年の今月」)
 let payEditMonth = null;
 let billMonthEditId = null;
 
@@ -654,6 +658,7 @@ function renderDestSuggestions(filterText){
   box.querySelectorAll('.dest-suggest-text').forEach(el=>{
     el.addEventListener('click', ()=>{
       document.getElementById('in-dest').value = el.dataset.dest;
+      maybeAutofillMemo(el.dataset.dest);
       hideDestSuggestions();
     });
   });
@@ -682,11 +687,35 @@ document.getElementById('in-dest').addEventListener('input', (e)=>{
 document.getElementById('in-dest').addEventListener('focus', (e)=>{
   renderDestSuggestions(e.target.value);
 });
+document.getElementById('in-memo').addEventListener('input', (e)=>{
+  e.target.classList.remove('memo-autofilled');
+});
+
+document.getElementById('in-dest').addEventListener('blur', (e)=>{
+  maybeAutofillMemo(e.target.value);
+});
 document.addEventListener('click', (e)=>{
   if(!e.target.closest('#in-dest') && !e.target.closest('#dest-suggest')){
     hideDestSuggestions();
   }
 });
+
+// 利用先を選ぶ／入力すると、その利用先の前回のメモを自動で入れておく
+// (美容院のメニューなど、毎回同じ内容が多いもの向け。すでにメモ欄に何か
+//  書かれている場合や、編集中の場合は上書きしない)
+function maybeAutofillMemo(destValue){
+  if(editingId) return;
+  const memoInput = document.getElementById('in-memo');
+  if(!memoInput || memoInput.value.trim() !== "") return;
+  const d = (destValue || "").trim();
+  if(!d) return;
+  const past = entries
+    .filter(e => e.dest === d && e.memo)
+    .sort((a,b)=> b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+  if(past.length === 0) return;
+  memoInput.value = past[0].memo;
+  memoInput.classList.add('memo-autofilled');
+}
 
 function showToast(msg){
   const t = document.getElementById('toast');
@@ -892,6 +921,7 @@ document.getElementById('save-btn').addEventListener('click', async ()=>{
   document.getElementById('in-dest').value = "";
   document.getElementById('in-amount').value = "";
   document.getElementById('in-memo').value = "";
+  document.getElementById('in-memo').classList.remove('memo-autofilled');
   document.getElementById('in-date').value = todayStr();
 
   render();
@@ -906,6 +936,7 @@ function startEdit(id){
   document.getElementById('in-amount').value = e.amount.toLocaleString();
   document.getElementById('in-cat').value = e.cat;
   document.getElementById('in-memo').value = e.memo || "";
+  document.getElementById('in-memo').classList.remove('memo-autofilled');
   document.getElementById('edit-banner').style.display = 'flex';
   document.getElementById('save-btn').textContent = 'この内容で更新する';
 
@@ -926,6 +957,7 @@ document.getElementById('cancel-edit-btn').addEventListener('click', ()=>{
   document.getElementById('in-dest').value = "";
   document.getElementById('in-amount').value = "";
   document.getElementById('in-memo').value = "";
+  document.getElementById('in-memo').classList.remove('memo-autofilled');
   document.getElementById('in-date').value = todayStr();
 });
 
@@ -987,7 +1019,7 @@ function renderList(){
   // 月選択肢の生成
   const monthsSet = new Set(entries.map(e => effectiveClosingMonth(e)));
   const months = [...monthsSet].sort();
-  const prevSelected = select.value || listMonthFilter;
+  const prevSelected = select.value || sharedMonthFilter;
   select.innerHTML = '<option value="__all__">全期間</option>' +
     months.slice().reverse().map(m=>{
       const [y,mo] = m.split('-');
@@ -1000,9 +1032,9 @@ function renderList(){
     const thisClosing = closingMonthLabel(todayStr());
     select.value = months.includes(thisClosing) ? thisClosing : "__all__";
   }
-  listMonthFilter = select.value || "__all__";
+  sharedMonthFilter = select.value || "__all__";
 
-  const filtered = listMonthFilter === "__all__" ? entries : entries.filter(e => effectiveClosingMonth(e) === listMonthFilter);
+  const filtered = sharedMonthFilter === "__all__" ? entries : entries.filter(e => effectiveClosingMonth(e) === sharedMonthFilter);
 
   if(filtered.length === 0){
     container.innerHTML = entries.length === 0
@@ -1016,7 +1048,7 @@ function renderList(){
 }
 
 document.getElementById('list-month-select').addEventListener('change', (e)=>{
-  listMonthFilter = e.target.value;
+  sharedMonthFilter = e.target.value;
   renderList();
 });
 
@@ -1068,9 +1100,9 @@ function renderGraph(){
     }
   });
 
-  // カテゴリ別（月選択）：初回は「今月」をデフォルトにする。以降はユーザーが選んだ値を尊重
+  // カテゴリ別（月選択）：記録一覧タブと選択中の月を共有する
   const catSelect = document.getElementById('cat-month-select');
-  const prevSelected = catSelect.value;
+  const prevSelected = catSelect.value || sharedMonthFilter;
   catSelect.innerHTML = '<option value="__all__">全期間</option>' +
     months.slice().reverse().map(m=>{
       const [y,mo] = m.split('-');
@@ -1083,6 +1115,7 @@ function renderGraph(){
     const thisMonthLabel = closingMonthLabel(todayStr());
     catSelect.value = months.includes(thisMonthLabel) ? thisMonthLabel : "__all__";
   }
+  sharedMonthFilter = catSelect.value || "__all__";
 
   drawCategoryChart(catSelect.value || "__all__");
   renderPayTable(months, monthTotals);
@@ -1258,6 +1291,7 @@ function drawCategoryChart(monthFilter){
 }
 
 document.getElementById('cat-month-select').addEventListener('change', (e)=>{
+  sharedMonthFilter = e.target.value;
   drawCategoryChart(e.target.value);
 });
 
