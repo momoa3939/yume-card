@@ -501,8 +501,11 @@
       <div class="section-title">月別の支出</div>
       <div class="chart-wrap"><canvas id="monthlyChart" height="180"></canvas></div>
 
-      <div class="section-title">締め日・支払日 一覧</div>
-      <div class="chart-wrap" id="pay-table-wrap"></div>
+      <div class="section-title accordion-toggle" id="pay-table-toggle" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+        <span>締め日・支払日 一覧</span>
+        <span id="pay-table-arrow" style="font-size:11px; color:var(--ink-soft);">▼</span>
+      </div>
+      <div class="chart-wrap" id="pay-table-wrap" style="display:none;"></div>
 
       <div class="section-title">アプリの調子が悪いとき</div>
       <div class="chart-wrap" style="text-align:center;">
@@ -521,7 +524,7 @@
       <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
         <span>利用先別</span>
         <div style="display:flex; gap:6px;">
-          <select class="month-select" id="dest-year-select" style="width:80px;"></select>
+          <select class="month-select" id="dest-year-select"></select>
           <select class="month-select" id="dest-select" style="max-width:150px;"></select>
         </div>
       </div>
@@ -1244,7 +1247,10 @@ function renderDestSummary(){
     const md = `${parseInt(m)}/${parseInt(d)}`;
     return `<tr>
       <td>${md}</td>
-      <td>${escapeHtml(e.dest)}</td>
+      <td>
+        ${escapeHtml(e.dest)}
+        <span class="cat" style="display:block; width:fit-content; margin-top:3px;">${escapeHtml(e.cat)}</span>
+      </td>
       <td>${e.memo ? escapeHtml(e.memo) : '－'}</td>
       <td class="num">${fmtYen(e.amount)}</td>
     </tr>`;
@@ -1303,6 +1309,22 @@ function renderPayTable(months, monthTotals){
     btn.addEventListener('click', ()=> openPayEditor(btn.dataset.month));
   });
 }
+
+// 「締め日・支払日 一覧」の開閉状態(デフォルトは閉じておく。次回起動時も覚えておく)
+const PAY_TABLE_COLLAPSE_KEY = "yumecard:payTableCollapsed";
+function isPayTableCollapsed(){
+  const v = localStorage.getItem(PAY_TABLE_COLLAPSE_KEY);
+  return v === null ? true : v === "1";
+}
+function setPayTableCollapsed(collapsed){
+  localStorage.setItem(PAY_TABLE_COLLAPSE_KEY, collapsed ? "1" : "0");
+  document.getElementById('pay-table-wrap').style.display = collapsed ? 'none' : 'block';
+  document.getElementById('pay-table-arrow').textContent = collapsed ? '▼' : '▲';
+}
+document.getElementById('pay-table-toggle').addEventListener('click', ()=>{
+  setPayTableCollapsed(!isPayTableCollapsed());
+});
+setPayTableCollapsed(isPayTableCollapsed());
 
 function openPayEditor(monthKey){
   payEditMonth = monthKey;
