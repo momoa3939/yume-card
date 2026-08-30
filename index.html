@@ -594,6 +594,7 @@ let editingId = null;
 let sharedMonthFilter = null; // 記録一覧とグラフの月選択を連動させる共有状態(nullなら初回は「今年の今月」)
 let payEditMonth = null;
 let billMonthEditId = null;
+let catManuallyTouched = false; // 入力中にカテゴリを手動で選び直したかどうか
 
 function todayStr(){
   const d = new Date();
@@ -658,7 +659,7 @@ function renderDestSuggestions(filterText){
   box.querySelectorAll('.dest-suggest-text').forEach(el=>{
     el.addEventListener('click', ()=>{
       document.getElementById('in-dest').value = el.dataset.dest;
-      maybeAutofillMemo(el.dataset.dest);
+      maybeAutofillFromDest(el.dataset.dest);
       hideDestSuggestions();
     });
   });
@@ -692,7 +693,7 @@ document.getElementById('in-memo').addEventListener('input', (e)=>{
 });
 
 document.getElementById('in-dest').addEventListener('blur', (e)=>{
-  maybeAutofillMemo(e.target.value);
+  maybeAutofillFromDest(e.target.value);
 });
 document.addEventListener('click', (e)=>{
   if(!e.target.closest('#in-dest') && !e.target.closest('#dest-suggest')){
@@ -700,22 +701,41 @@ document.addEventListener('click', (e)=>{
   }
 });
 
-// 利用先を選ぶ／入力すると、その利用先の前回のメモを自動で入れておく
+// 利用先を選ぶ／入力すると、その利用先の前回のメモ・カテゴリを自動で入れておく
 // (美容院のメニューなど、毎回同じ内容が多いもの向け。すでにメモ欄に何か
-//  書かれている場合や、編集中の場合は上書きしない)
-function maybeAutofillMemo(destValue){
+//  書かれている場合や、カテゴリを手動で選び直した場合、編集中の場合は上書きしない)
+function maybeAutofillFromDest(destValue){
   if(editingId) return;
-  const memoInput = document.getElementById('in-memo');
-  if(!memoInput || memoInput.value.trim() !== "") return;
   const d = (destValue || "").trim();
   if(!d) return;
   const past = entries
-    .filter(e => e.dest === d && e.memo)
+    .filter(e => e.dest === d)
     .sort((a,b)=> b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
   if(past.length === 0) return;
-  memoInput.value = past[0].memo;
-  memoInput.classList.add('memo-autofilled');
+
+  // メモ：空欄の時だけ、直近で書かれていたメモを入れる
+  const memoInput = document.getElementById('in-memo');
+  if(memoInput && memoInput.value.trim() === ""){
+    const withMemo = past.find(e => e.memo);
+    if(withMemo){
+      memoInput.value = withMemo.memo;
+      memoInput.classList.add('memo-autofilled');
+    }
+  }
+
+  // カテゴリ：まだ手動で選び直していない時だけ、直近と同じカテゴリにする
+  const catInput = document.getElementById('in-cat');
+  if(catInput && !catManuallyTouched){
+    const latestCat = past[0].cat;
+    if(latestCat && CATS.includes(latestCat)){
+      catInput.value = latestCat;
+    }
+  }
 }
+
+document.getElementById('in-cat').addEventListener('change', ()=>{
+  catManuallyTouched = true;
+});
 
 function showToast(msg){
   const t = document.getElementById('toast');
@@ -923,6 +943,7 @@ document.getElementById('save-btn').addEventListener('click', async ()=>{
   document.getElementById('in-memo').value = "";
   document.getElementById('in-memo').classList.remove('memo-autofilled');
   document.getElementById('in-date').value = todayStr();
+  catManuallyTouched = false;
 
   render();
 });
@@ -937,6 +958,7 @@ function startEdit(id){
   document.getElementById('in-cat').value = e.cat;
   document.getElementById('in-memo').value = e.memo || "";
   document.getElementById('in-memo').classList.remove('memo-autofilled');
+  catManuallyTouched = false;
   document.getElementById('edit-banner').style.display = 'flex';
   document.getElementById('save-btn').textContent = 'この内容で更新する';
 
@@ -959,6 +981,7 @@ document.getElementById('cancel-edit-btn').addEventListener('click', ()=>{
   document.getElementById('in-memo').value = "";
   document.getElementById('in-memo').classList.remove('memo-autofilled');
   document.getElementById('in-date').value = todayStr();
+  catManuallyTouched = false;
 });
 
 // ---------- 一覧 ----------
