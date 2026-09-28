@@ -473,7 +473,7 @@
         <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none;">
         <button id="backup-save-btn" class="export-btn">📦 バックアップ保存</button>
         <button id="backup-restore-btn" class="export-btn">📦 復元</button>
-        <input type="file" id="backup-restore-file" accept=".json" style="display:none;">
+        <input type="file" id="backup-restore-file" accept=".json,.txt,application/json,text/plain" style="display:none;">
       </div>
     </section>
 
@@ -1603,10 +1603,13 @@ async function performBackupSave(){
   };
   const json = JSON.stringify(payload, null, 2);
   const fileName = `yumecard_backup_${todayStr()}.json`;
+  // スマホの共有機能は .json を受け付けないため、共有するときだけ .txt 形式にする
+  // (中身は同じ。復元ボタンから .txt もそのまま読み込める)
+  const shareName = `yumecard_backup_${todayStr()}.txt`;
 
   // ① 共有メニューで保存(Pixelなど)
   try{
-    const file = new File([json], fileName, {type: "application/json"});
+    const file = new File([json], shareName, {type: "text/plain"});
     if(navigator.canShare && navigator.canShare({files: [file]})){
       await navigator.share({files: [file], title: fileName});
       markBackupDone();
