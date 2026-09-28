@@ -1584,7 +1584,16 @@ document.getElementById('reset-cache-btn').addEventListener('click', async ()=>{
 
 
 // ---------- バックアップ保存(JSON) ----------
-function performBackupSave(){
+// バックアップ完了の記録(催促カウントをリセット)
+function markBackupDone(){
+  localStorage.setItem(BACKUP_LAST_KEY, Date.now().toString());
+  localStorage.removeItem(BACKUP_COUNT_KEY);
+  localStorage.removeItem(BACKUP_SHOWN_KEY);
+}
+
+// スマホでは共有メニューを開いて「ドライブ」などに保存できるようにする
+// (共有に対応していない環境では、今まで通りダウンロード保存)
+async function performBackupSave(){
   const payload = {
     app: "yumecard-kakeibo",
     version: 1,
@@ -1592,21 +1601,39 @@ function performBackupSave(){
     entries: entries,
     overrides: overrides
   };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {type: "application/json"});
+  const json = JSON.stringify(payload, null, 2);
+  const fileName = `yumecard_backup_${todayStr()}.json`;
+
+  // ① 共有メニューで保存(Pixelなど)
+  try{
+    const file = new File([json], fileName, {type: "application/json"});
+    if(navigator.canShare && navigator.canShare({files: [file]})){
+      await navigator.share({files: [file], title: fileName});
+      markBackupDone();
+      showToast("バックアップを共有したよ");
+      return;
+    }
+  }catch(err){
+    if(err && err.name === "AbortError"){
+      // 共有メニューを閉じた(キャンセル)ときは何もしない
+      showToast("バックアップをキャンセルしたよ");
+      return;
+    }
+    // それ以外のエラーは下のダウンロード保存にまわす
+  }
+
+  // ② ダウンロード保存(今まで通り)
+  const blob = new Blob([json], {type: "application/json"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const stamp = todayStr().replace(/-/g, '');
   a.href = url;
-  a.download = `yumecard_backup_${stamp}.json`;
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
 
-  localStorage.setItem(BACKUP_LAST_KEY, Date.now().toString());
-  localStorage.removeItem(BACKUP_COUNT_KEY);
-  localStorage.removeItem(BACKUP_SHOWN_KEY);
-
+  markBackupDone();
   showToast("バックアップを保存したよ");
 }
 
