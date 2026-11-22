@@ -569,8 +569,9 @@
   <div class="modal-box">
     <div class="modal-title">バックアップの内容を確認</div>
     <div id="backup-confirm-info" style="font-size:13px; color:var(--ink); line-height:1.9; margin-bottom:16px;"></div>
-    <button id="backup-confirm-merge" class="save-btn">追加する（今のデータに足す）</button>
-    <div style="display:flex; gap:8px; margin-top:8px;">
+    <div id="restore-top"></div>
+    <div id="restore-row" style="display:flex; gap:8px; margin-top:8px;">
+      <button id="backup-confirm-merge" class="export-btn" style="flex:1;">追加する</button>
       <button id="backup-confirm-replace" class="export-btn" style="flex:1;">全部置き換える</button>
       <button id="backup-confirm-cancel" class="export-btn" style="flex:1;">キャンセル</button>
     </div>
@@ -1688,6 +1689,32 @@ document.getElementById('backup-remind-later').addEventListener('click', ()=>{
 // ---------- バックアップ復元(JSON) ----------
 let pendingBackupData = null;
 
+// おすすめのボタンだけを上の大きい青ボタンにして、ほかは下の小さいボタンに並べる
+// (おすすめが決められないときは、3つとも同じ小さいボタンにして押しまちがいを防ぐ)
+function arrangeRestoreButtons(recommend){
+  const top = document.getElementById('restore-top');
+  const row = document.getElementById('restore-row');
+  const merge = document.getElementById('backup-confirm-merge');
+  const replace = document.getElementById('backup-confirm-replace');
+  const cancel = document.getElementById('backup-confirm-cancel');
+
+  [merge, replace].forEach(b => { b.className = 'export-btn'; b.style.flex = '1'; });
+  merge.textContent = '追加する';
+  replace.textContent = '全部置き換える';
+  row.innerHTML = '';
+  top.innerHTML = '';
+
+  const big = recommend === 'merge' ? merge : recommend === 'replace' ? replace : null;
+  if(big){
+    big.className = 'save-btn';
+    big.style.flex = '';
+    big.textContent = (recommend === 'merge' ? '追加する（今のデータに足す）' : '全部置き換える') + '（おすすめ）';
+    top.appendChild(big);
+  }
+  [merge, replace].forEach(b => { if(b !== big) row.appendChild(b); });
+  row.appendChild(cancel);
+}
+
 document.getElementById('backup-restore-btn').addEventListener('click', ()=>{
   document.getElementById('backup-restore-file').click();
 });
@@ -1707,8 +1734,37 @@ document.getElementById('backup-restore-file').addEventListener('change', async 
     const dates = data.entries.map(e => e.date).filter(Boolean).sort();
     const dateRange = dates.length ? `${dates[0]} 〜 ${dates[dates.length - 1]}` : "（記録なし）";
     const createdAt = data.exportedAt ? new Date(data.exportedAt).toLocaleString('ja-JP') : "不明";
+    // どちらのボタンを押すと何が起きるかを、件数で前もって見せる
+    const keyOf = e => `${e.date}|${e.dest}|${e.amount}`;
+    const curKeys = new Set(entries.map(keyOf));
+    const curIds = new Set(entries.map(e => e.id));
+    const bakIds = new Set(data.entries.map(e => e.id).filter(Boolean));
+    const willAdd = data.entries.filter(e => !curKeys.has(keyOf(e)));
+    const dupCount = willAdd.filter(e => e.id && curIds.has(e.id)).length; // 内容を直した記録(追加すると二重になる)
+    const lostCount = entries.filter(e => !bakIds.has(e.id)).length;       // 置き換えると消える記録
+
+    let advice, recommend = null;
+    if(lostCount === 0){
+      advice = "👉 おすすめ：<b>全部置き換える</b><br>（今のアプリの記録はすべてバックアップに入っています）";
+      recommend = 'replace';
+    }else if(dupCount === 0){
+      advice = "👉 おすすめ：<b>追加する</b><br>（今のアプリにしかない記録があるので、置き換えると消えます）";
+      recommend = 'merge';
+    }else{
+      advice = "⚠️ どちらを選んでも少し注意が必要です。<br>下の件数を見て選んでね";
+    }
+    arrangeRestoreButtons(recommend);
+
     document.getElementById('backup-confirm-info').innerHTML =
-      `作成日時：${createdAt}<br>記録件数：${data.entries.length}件<br>期間：${dateRange}`;
+      `作成日時：${createdAt}<br>期間：${dateRange}<br>` +
+      `今のアプリ：${entries.length}件　／　バックアップ：${data.entries.length}件` +
+      `<div style="margin:10px 0; padding:10px; background:var(--blue-pale); border-radius:8px; line-height:1.7;">${advice}</div>` +
+      `<div style="font-size:12px; line-height:1.7;">` +
+      `・追加する → ${willAdd.length}件ふえる` +
+      (dupCount > 0 ? `<br>　<span style="color:var(--danger);">※うち${dupCount}件は直した記録なので二重になります</span>` : "") +
+      `<br>・全部置き換える → ${data.entries.length}件になる` +
+      (lostCount > 0 ? `<br>　<span style="color:var(--danger);">※今のアプリにしかない${lostCount}件は消えます</span>` : "") +
+      `</div>`;
     document.getElementById('backup-confirm-modal').style.display = 'flex';
   }catch(err){
     showToast("読み込みに失敗したよ。ファイル形式を確認してね");
@@ -1724,12 +1780,19 @@ document.getElementById('backup-confirm-cancel').addEventListener('click', ()=>{
 document.getElementById('backup-confirm-merge').addEventListener('click', async ()=>{
   if(!pendingBackupData) return;
   const existingKeys = new Set(entries.map(e => `${e.date}|${e.dest}|${e.amount}`));
+  const existingIds = new Set(entries.map(e => e.id));
   let added = 0;
   pendingBackupData.entries.forEach(e=>{
     const key = `${e.date}|${e.dest}|${e.amount}`;
     if(!existingKeys.has(key)){
       existingKeys.add(key);
-      entries.push({...e, id: e.id || (Date.now().toString(36) + Math.random().toString(36).slice(2, 6))});
+      // 同じidがすでにあると編集・削除がおかしくなるので、そのときは新しいidをつける
+      let id = e.id;
+      if(!id || existingIds.has(id)){
+        id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + added;
+      }
+      existingIds.add(id);
+      entries.push({...e, id});
       added++;
     }
   });
