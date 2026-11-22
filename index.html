@@ -1389,6 +1389,36 @@ document.getElementById('bill-month-reset').addEventListener('click', async ()=>
   render();
 });
 
+// ---------- カテゴリ別の記録一覧(グラフを押したカテゴリだけにしぼれる) ----------
+let catFilter = null;
+let catFilterMonth = null;
+
+function renderCatEntries(target, monthFilter){
+  const titleEl = document.getElementById('cat-month-entries-title');
+  const monthText = monthFilter === "__all__"
+    ? "全期間の記録"
+    : (()=>{ const [y,mo] = monthFilter.split('-'); return `${y}年${parseInt(mo)}月分の記録`; })();
+
+  const list = catFilter ? target.filter(e => e.cat === catFilter) : target;
+
+  if(catFilter){
+    const sum = list.reduce((s,e)=>s+e.amount,0);
+    titleEl.innerHTML = `${monthText}（${escapeHtml(catFilter)}だけ・${fmtYen(sum)}）
+      <button type="button" id="cat-filter-clear" class="export-btn" style="margin-left:6px;">全部に戻す</button>`;
+    document.getElementById('cat-filter-clear').addEventListener('click', ()=>{
+      catFilter = null;
+      renderCatEntries(target, monthFilter);
+    });
+  }else{
+    titleEl.textContent = monthText;
+  }
+
+  const entriesWrap = document.getElementById('cat-month-entries');
+  const sorted = [...list].sort((a,b)=> b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+  entriesWrap.innerHTML = buildEntriesHtml(sorted);
+  bindDeleteButtons(entriesWrap);
+}
+
 function drawCategoryChart(monthFilter){
   const target = monthFilter === "__all__" ? entries : entries.filter(e=>effectiveClosingMonth(e)===monthFilter);
 
@@ -1407,18 +1437,10 @@ function drawCategoryChart(monthFilter){
   }
   cardValueEl.textContent = fmtYen(cardTotal);
 
-  const titleEl = document.getElementById('cat-month-entries-title');
-  if(monthFilter === "__all__"){
-    titleEl.textContent = "全期間の記録";
-  }else{
-    const [y,mo] = monthFilter.split('-');
-    titleEl.textContent = `${y}年${parseInt(mo)}月分の記録`;
-  }
-
-  const entriesWrap = document.getElementById('cat-month-entries');
-  const sortedTarget = [...target].sort((a,b)=> b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
-  entriesWrap.innerHTML = buildEntriesHtml(sortedTarget);
-  bindDeleteButtons(entriesWrap);
+  // 月を変えたら、カテゴリのしぼり込みは解除する
+  if(catFilterMonth !== monthFilter){ catFilter = null; catFilterMonth = monthFilter; }
+  if(catFilter && !target.some(e => e.cat === catFilter)) catFilter = null;
+  renderCatEntries(target, monthFilter);
   const catTotals = CATS.map(c => target.filter(e=>e.cat===c).reduce((s,e)=>s+e.amount,0));
   const hasData = catTotals.some(v=>v>0);
 
@@ -1439,7 +1461,17 @@ function drawCategoryChart(monthFilter){
         legend:{position:'bottom', labels:{boxWidth:12, font:{size:11}, padding:12}},
         tooltip:{ enabled: hasData, callbacks:{ label: ctx => ` ${ctx.label}: ¥${ctx.parsed.toLocaleString()}` } }
       },
-      cutout:'62%'
+      cutout:'62%',
+      // グラフの色の部分を押すと、下の記録をそのカテゴリだけにしぼる(もう一度押すと全部に戻る)
+      onClick: (evt, els) => {
+        if(!hasData || !els.length) return;
+        const c = CATS[els[0].index];
+        catFilter = (catFilter === c) ? null : c;
+        renderCatEntries(target, monthFilter);
+        if(catFilter){
+          document.getElementById('cat-month-entries-title').scrollIntoView({behavior:'smooth', block:'start'});
+        }
+      }
     }
   });
 }
